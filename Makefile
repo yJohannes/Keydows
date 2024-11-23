@@ -12,6 +12,3 @@ link:
 run:
 	@echo "*" Running main.exe
 	@build/main.exe
-
-clean:
-	del /f build\main.exe build\main.o

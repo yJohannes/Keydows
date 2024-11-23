@@ -1,3 +1,11 @@
+#include "event/process.hpp"
+
+int main()
+{
+    run();
+}
+
+#ifdef lol
 #include <windows.h>
 
 #include <iostream>
@@ -7,6 +15,8 @@
 
 #define MOD_CWA MOD_CONTROL | MOD_WIN | MOD_ALT
 #define MOVE_SPEED 10
+
+
 
 enum Hotkeys
 {
@@ -29,7 +39,6 @@ int main()
         std::cerr << "Failed to register hotkey!" << std::endl;
     }
 
-
     MSG msg;
     while (true)
     {
@@ -44,14 +53,9 @@ int main()
 
                 else if (msg.wParam == Hotkeys::Right)
                 {
-                    std::string window_name = "SpeedCrunch";
-
-                    std::wstring wide_window_name(window_name.begin(), window_name.end());
-
-                    HWND hwnd = FindWindowW(NULL, wide_window_name.c_str());
+                    HWND hwnd = GetForegroundWindow();
                     if (hwnd)
                     {
-                        std::cout << "JOO";
                         // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowrect
                         //
                         RECT rect;
@@ -74,3 +78,4 @@ int main()
     UnregisterHotKey(NULL, Hotkeys::Close);
     return 0;
 }
+#endif
