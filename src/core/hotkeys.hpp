@@ -6,6 +6,7 @@
 enum HotKeyID
 {
     CLOSE,
+    RELOAD,
     MOVE_LEFT,
     MOVE_RIGHT,
     MOVE_UP,
@@ -35,7 +36,8 @@ void register_key(int hk_id, int mod, int vk)
 
 void register_hotkeys()
 {
-    register_key(CLOSE, SWA, VK_F4);
+    register_key(CLOSE, SCW, VK_F4);
+    register_key(RELOAD, SCW, VK_F5);
     
     register_key(MOVE_LEFT,  SWA, VK_LEFT);
     register_key(MOVE_RIGHT, SWA, VK_RIGHT);

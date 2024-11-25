@@ -1,14 +1,17 @@
-all: compile link run
+all: mk_build compile link run
+
+mk_build:
+	@mkdir -p build
 
 compile:
 	@echo "* Compiling"
-	@g++ -c src/main.cpp -I./src -o build/main.o
+	@g++ -c src/main.cpp -I./src -o build/Keydows.o
 
 
 link:
 	@echo "* Linking"
-	@g++ build/main.o -o build/main -luser32
+	@g++ build/Keydows.o -o build/Keydows -luser32
 
 run:
-	@echo "* Running main.exe"
-	@build/main.exe
+	@echo "* Running Keydows.exe"
+	@build/Keydows.exe

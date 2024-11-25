@@ -1,0 +1,7 @@
+# Move speed (pixels)
+MOVE_SPEED = 25
+
+# Move duration (ms)
+MOVE_DURATION = 25
+
+RUN_AT_STARTUP = true
