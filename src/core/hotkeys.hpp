@@ -18,8 +18,8 @@ enum HotKeyID
 
 enum HotKeyMod
 {
-    WA  = MOD_WIN | MOD_ALT,
-    CWA = MOD_CONTROL | MOD_WIN | MOD_ALT
+    SWA  = MOD_SHIFT | MOD_WIN | MOD_ALT,
+    SCW = MOD_SHIFT | MOD_CONTROL | MOD_WIN
 };
 
 void register_key(int hk_id, int mod, int vk)
@@ -35,17 +35,17 @@ void register_key(int hk_id, int mod, int vk)
 
 void register_hotkeys()
 {
-    register_key(CLOSE, WA, VK_F4);
+    register_key(CLOSE, SWA, VK_F4);
     
-    register_key(MOVE_LEFT,  WA, VK_LEFT);
-    register_key(MOVE_RIGHT, WA, VK_RIGHT);
-    register_key(MOVE_UP,    WA, VK_UP);
-    register_key(MOVE_DOWN,  WA, VK_DOWN);
+    register_key(MOVE_LEFT,  SWA, VK_LEFT);
+    register_key(MOVE_RIGHT, SWA, VK_RIGHT);
+    register_key(MOVE_UP,    SWA, VK_UP);
+    register_key(MOVE_DOWN,  SWA, VK_DOWN);
 
-    register_key(RESZ_LEFT,  CWA, VK_LEFT);
-    register_key(RESZ_RIGHT, CWA, VK_RIGHT);
-    register_key(RESZ_UP,    CWA, VK_UP);
-    register_key(RESZ_DOWN,  CWA, VK_DOWN);
+    register_key(RESZ_LEFT,  SCW, VK_LEFT);
+    register_key(RESZ_RIGHT, SCW, VK_RIGHT);
+    register_key(RESZ_UP,    SCW, VK_UP);
+    register_key(RESZ_DOWN,  SCW, VK_DOWN);
 }
 
 void unregister_hotkeys()

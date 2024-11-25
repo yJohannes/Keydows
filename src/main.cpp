@@ -1,6 +1,9 @@
-#include "event/process.hpp"
+#include "core/application.hpp"
+
+// add keybinds to resize and move wiith mouse as well aywherenn
 
 int main()
 {
-    run();
+    Application application;
+    application.run();
 }

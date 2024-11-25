@@ -1,14 +1,14 @@
 all: compile link run
 
 compile:
-	@echo "*" Compiling
+	@echo "* Compiling"
 	@g++ -c src/main.cpp -I./src -o build/main.o
 
 
 link:
-	@echo "*" Linking
+	@echo "* Linking"
 	@g++ build/main.o -o build/main -luser32
 
 run:
-	@echo "*" Running main.exe
+	@echo "* Running main.exe"
 	@build/main.exe
