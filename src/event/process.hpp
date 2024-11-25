@@ -4,14 +4,6 @@
 
 bool running = true;
 
-enum Direction
-{
-    LEFT,
-    RIGHT,
-    UP,
-    DOWN
-};
-
 void handle_hotkey(MSG &msg)
 {
     if (msg.wParam == CLOSE)
@@ -37,8 +29,8 @@ void handle_hotkey(MSG &msg)
         y -= MOVE_SPEED * (wParam == MOVE_UP);
         y += MOVE_SPEED * (wParam == MOVE_DOWN);
         
-        width -= MOVE_SPEED * (wParam == RESZ_LEFT);
-        width += MOVE_SPEED * (wParam == RESZ_RIGHT);
+        width  -= MOVE_SPEED * (wParam == RESZ_LEFT);
+        width  += MOVE_SPEED * (wParam == RESZ_RIGHT);
         height -= MOVE_SPEED * (wParam == RESZ_UP);
         height += MOVE_SPEED * (wParam == RESZ_DOWN);
 
@@ -49,17 +41,28 @@ void handle_hotkey(MSG &msg)
 
 void run()
 {
-    HotKeyManager hk_manager;
+    register_hotkeys();
 
     MSG msg;
     while (running)
     {
-        if (GetMessage(&msg, NULL, 0, 0) && msg.message == WM_HOTKEY)
+
+        HWND hwnd = GetForegroundWindow();
+        if (!hwnd)
         {
-            handle_hotkey(msg);
+            continue;
         }
         
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        if (GetMessage(&msg, NULL, 0, 0))
+        {
+            if (msg.message == WM_HOTKEY)
+            {
+                handle_hotkey(msg);
+            }
+
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
     }
+    unregister_hotkeys();
 }
