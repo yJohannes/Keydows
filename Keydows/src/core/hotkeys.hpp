@@ -3,6 +3,15 @@
 #include <windows.h>
 #include <iostream>
 
+
+enum Directions
+{
+    LEFT  = VK_F9,
+    RIGHT = VK_F12,
+    UP    = VK_F10,
+    DOWN  = VK_F11,
+};
+
 enum HotKeyID
 {
     CLOSE,
@@ -19,8 +28,8 @@ enum HotKeyID
 
 enum HotKeyMod
 {
-    SWA  = MOD_SHIFT | MOD_WIN | MOD_ALT,
-    SCW = MOD_SHIFT | MOD_CONTROL | MOD_WIN
+    W  = MOD_WIN,
+    WA = MOD_WIN | MOD_ALT
 };
 
 void register_key(int hk_id, int mod, int vk)
@@ -36,18 +45,18 @@ void register_key(int hk_id, int mod, int vk)
 
 void register_hotkeys()
 {
-    register_key(CLOSE, SCW, VK_F4);
-    register_key(RELOAD, SCW, VK_F5);
+    register_key(CLOSE,  WA, VK_F4);
+    register_key(RELOAD, WA, VK_F5);
     
-    register_key(MOVE_LEFT,  SWA, VK_LEFT);
-    register_key(MOVE_RIGHT, SWA, VK_RIGHT);
-    register_key(MOVE_UP,    SWA, VK_UP);
-    register_key(MOVE_DOWN,  SWA, VK_DOWN);
+    register_key(MOVE_LEFT,  W, LEFT);
+    register_key(MOVE_RIGHT, W, RIGHT);
+    register_key(MOVE_UP,    W, UP);
+    register_key(MOVE_DOWN,  W, DOWN);
 
-    register_key(RESZ_LEFT,  SCW, VK_LEFT);
-    register_key(RESZ_RIGHT, SCW, VK_RIGHT);
-    register_key(RESZ_UP,    SCW, VK_UP);
-    register_key(RESZ_DOWN,  SCW, VK_DOWN);
+    register_key(RESZ_LEFT,  WA, LEFT);
+    register_key(RESZ_RIGHT, WA, RIGHT);
+    register_key(RESZ_UP,    WA, UP);
+    register_key(RESZ_DOWN,  WA, DOWN);
 }
 
 void unregister_hotkeys()
