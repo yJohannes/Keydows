@@ -8,9 +8,7 @@
 #include <shellscalingapi.h>
 
 #include <iostream>
-#include <cwchar>  // For wcschr
-
-// #include <algorithm>
+#include <cwchar>
 
 #include "hotkeys.hpp"
 
@@ -29,12 +27,19 @@ private:
     LONG DISPLAY_W;
     LONG DISPLAY_H;
 
-    LONG X_BLOCKS = 24;
-    LONG Y_BLOCKS = 18;
+    // LONG X_BLOCKS = 24;
+    // LONG Y_BLOCKS = 18;
+
+
+    LONG X_BLOCKS = 38;
+    LONG Y_BLOCKS = 32;
+
     LONG BLOCK_W;
     LONG BLOCK_H;
 
-    static constexpr const wchar_t* chars = L"QWERTYUIOPASDFGHJKLZXCVBNM";
+    // static constexpr const wchar_t* m_chars = L"QWERTYUIOPASDFGHJKLZXCVBNM1234567890";
+    static constexpr const wchar_t* m_chars = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
+    // static constexpr const wchar_t* m_chars = L"12345ABCDEFGHIJKLMNOPQRTSUVWXYZ67890,.-";
 public:
     Application(HINSTANCE hInstance, int nCmdShow)
     {
@@ -119,6 +124,12 @@ private:
             handle_keydown(wParam, lParam);
             return 0;
 
+        case WM_KEYUP:
+            if (wParam == VK_SPACE && m_listening)
+            {
+                return 0;
+            }
+
         case WM_HOTKEY:
             handle_hotkey(wParam, 0);
             return 0;
@@ -160,9 +171,17 @@ private:
                 show_window(false);
             }
             return;
-        }
 
-        wchar_t key_down = get_key_char(wParam, lParam);
+        case VK_BACK:
+            if (m_listening)
+            {
+                if (char2) char2 = 0;
+                else if (char1) char1 = 0; 
+            }
+            return;
+        }
+        
+        wchar_t key_down = towupper(get_key_char(wParam, lParam));
         if (key_down == 0) return;
 
         std::cout << (char)key_down << "\n";
@@ -171,9 +190,8 @@ private:
         {
             int id1 = get_char_index(char1);
             int id2 = get_char_index(char2);
-            std::cout << id1 << " | " << id2 << " IDS\n";
 
-            if (!id1 || !id2) 
+            if (id1 == -1 || id2 == -1) 
             {
                 if (!id1) char1 = 0;
                 if (!id2) char2 = 0;
@@ -182,8 +200,17 @@ private:
 
             LONG x, y;
             chars_to_coordinates(id1, id2, &x, &y);
-            std::cout << x << " | " << y << " XY\n";
-            // click_at(x, y);
+
+            x -= BLOCK_W / 2 * (wParam == 'A' || wParam == 'Q' || wParam == 'X');
+            x += BLOCK_W / 2 * (wParam == 'D' || wParam == 'E' || wParam == 'C');
+
+            y -= BLOCK_H / 2 * (wParam == 'W' || wParam == 'Q' || wParam == 'E');
+            y += BLOCK_H / 2 * (wParam == 'S' || wParam == 'X' || wParam == 'C');
+
+            if (x < DISPLAY_W && y < DISPLAY_H) // xy cannot be negative
+            {
+                click_at(x, y);
+            }
 
             // Reset pressed chars (will be changed with multi-click being added)
             char1 = 0;
@@ -247,13 +274,14 @@ private:
                 ::MoveToEx(hMemDC, 0, y-1, NULL);
                 ::LineTo(hMemDC, DISPLAY_W, y-1);
 
-                // Draw text at the center of each block
+                // Get 
                 wchar_t combination[3] = {
-                    chars[x / BLOCK_W % wcslen(chars)],
-                    chars[y / BLOCK_H % wcslen(chars)],
+                    m_chars[x / BLOCK_W % wcslen(m_chars)],
+                    m_chars[y / BLOCK_H % wcslen(m_chars)],
                     L'\0'
                 };
 
+                // Draw text at the center of each block
                 RECT textRect = { x, y, x + BLOCK_W, y + BLOCK_H };
                 ::DrawTextW(hMemDC, combination, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             }
@@ -274,7 +302,7 @@ private:
     {
         if (show)
         {
-            ::ShowWindow(m_HWND, SW_SHOWNORMAL);// SW_SHOWNOACTIVATE Doesn't get focus, SW_SHOWNORMAL gets focus
+            ::ShowWindow(m_HWND, SW_SHOWNORMAL); // SW_SHOWNOACTIVATE Doesn't get focus, SW_SHOWNORMAL gets focus
             ::SetForegroundWindow(m_HWND); // This forces focus anyway
             m_listening = true;
         }
@@ -289,18 +317,16 @@ private:
 
     void chars_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out)
     {
-        *x_out = char_id2 * BLOCK_W + BLOCK_W / 2;
-        *y_out = char_id1 * BLOCK_H + BLOCK_H / 2;
+        *x_out = char_id1 * BLOCK_W + BLOCK_W / 2;
+        *y_out = char_id2 * BLOCK_H + BLOCK_H / 2;
     }
 
-    int get_char_index(wchar_t c)
-    {
-        const wchar_t* pos = std::wcschr(chars, c);
-        if (pos != nullptr)
+    int get_char_index(wchar_t c) {
+        for (int i = 0; i < wcslen(m_chars); ++i)
         {
-            return pos - chars; // Get the index by subtracting the base address
+            if (m_chars[i] == c) return i;
         }
-        return -1;  // Character not found
+        return -1; // Not found
     }
 
     wchar_t get_key_char(WPARAM wParam, LPARAM lParam)
@@ -319,34 +345,28 @@ private:
             return ch;
         }
 
-        return 0; // Return null if no character was generated
+        return 0; // null if no character was generated
     }
 
     void click_at(int x, int y)
     {
-        // Set cursor position
         SetCursorPos(x, y);
 
-        // Prepare the INPUT structure
-        INPUT input = {0};
+        INPUT inputs[2] = {};
+        inputs[0].type = INPUT_MOUSE;
+        inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
 
-        // Mouse click down event
-        input.type = INPUT_MOUSE;
-        input.mi.dx = x;
-        input.mi.dy = y;
-        input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-        SendInput(1, &input, sizeof(INPUT));
+        inputs[1].type = INPUT_MOUSE;
+        inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
 
-        // Mouse click up event
-        input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-        SendInput(1, &input, sizeof(INPUT));
+        SendInput(2, inputs, sizeof(INPUT));
     }
 
     void handle_message(const MSG *msg)
     {
         if (msg->message == WM_HOTKEY)
         {
-            static int holdables[] = {};// {LEFT, RIGHT, UP, DOWN};
+            static int holdables[1] = {};// {LEFT, RIGHT, UP, DOWN};
             int held_key = -1;
 
             for (int key : holdables)
