@@ -256,25 +256,31 @@ private:
             DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
         );
 
+        static HFONT hFont_border = ::CreateFont(
+            36, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
+        );
+
         // Set the memory DC for text and line drawing
         ::SetTextColor(hMemDC, RGB(255, 255, 255));  // White text color
-        ::SetBkMode(hMemDC, TRANSPARENT);            // Transparent background
+        ::SetBkMode(hMemDC, OPAQUE);            // OPAQUE, TRANSPARENT
+        ::SetBkColor(hMemDC, RGB(1, 1, 1)); // Background color, 0 is invisible
+
         ::SelectObject(hMemDC, hPen);
         ::SelectObject(hMemDC, hFont);
         
-        // Draw lines and text
         for (LONG x = 0; x < DISPLAY_W; x += BLOCK_W) {
             for (LONG y = 0; y < DISPLAY_H; y += BLOCK_H)
             {
-                // Draw vertical lines
-                ::MoveToEx(hMemDC, x-1, 0, NULL);
-                ::LineTo(hMemDC, x-1, DISPLAY_H);
+                // // Draw vertical lines
+                // ::MoveToEx(hMemDC, x-1, 0, NULL);
+                // ::LineTo(hMemDC, x-1, DISPLAY_H);
 
-                // Draw horizontal lines
-                ::MoveToEx(hMemDC, 0, y-1, NULL);
-                ::LineTo(hMemDC, DISPLAY_W, y-1);
+                // // Draw horizontal lines
+                // ::MoveToEx(hMemDC, 0, y-1, NULL);
+                // ::LineTo(hMemDC, DISPLAY_W, y-1);
 
-                // Get 
                 wchar_t combination[3] = {
                     m_chars[x / BLOCK_W % wcslen(m_chars)],
                     m_chars[y / BLOCK_H % wcslen(m_chars)],

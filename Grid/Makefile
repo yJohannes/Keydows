@@ -14,11 +14,11 @@ compile:
 
 link:
 	@echo "* Linking"
-	@g++ build/Grid.o -o build/Grid -luser32 -lgdi32 -lshcore
+	@g++ build/Grid.o -o build/Grid -luser32 -lgdi32 -lshcore -lgdiplus
 
 dbg:
 	@g++ -g -c src/main.cpp -I./src -DUNICODE -D_UNICODE -o build/Grid.o
-	@g++ build/Grid.o -o build/Grid -luser32 -lgdi32 -lshcore
+	@g++ build/Grid.o -o build/Grid -luser32 -lgdi32 -lshcore -lgdiplus
 	@gdb ./build/Grid.exe
 
 # link:
