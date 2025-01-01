@@ -1,9 +1,16 @@
+#define STRICT 1
+#define WIN32_LEAN_AND_MEAN
+#define NTDDI_VERSION NTDDI_WINBLUE
+#include <Windows.h>
 #include "core/application.hpp"
 
-// add keybinds to resize and move wiith mouse as well aywherenn
-
-int main()
+int APIENTRY WinMain(
+    HINSTANCE hInstance,
+    HINSTANCE /*hPrevInstance*/,
+    LPSTR    /*lpCmdLine*/,
+    int       nCmdShow
+)
 {
-    Application application;
-    application.run();
+    Application app(hInstance, nCmdShow);
+    return app.run();
 }
