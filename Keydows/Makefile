@@ -1,8 +1,8 @@
 all: mk_build compile link run
 
 mk_build:
-	@if not exist "build" mkdir build
-# @if [ ! -d "build" ]; then mkdir build; fi
+	@if [ ! -d "build" ]; then mkdir build; fi
+# @if not exist "build" mkdir build
 	
 # compile:
 # 	@echo "* Compiling"

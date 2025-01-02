@@ -14,80 +14,88 @@
 
 /*
 TODO:
-- Key that removes input characters 
+- Key that removes all input characters 
+- Don't do all repaint rendering on show, use old DC 
+- Start on run instead of what line 41 says
 */
 
 class Application
 {
 private:
-    const int MOVE_SPEED = 15;
-    const int MOVE_DURATION = 25;
-    const int MOVE_MARGIN = 200; // pixels
+    static HWND m_hwnd;
+    static HHOOK m_keyboard_hook;
+    static bool m_keyboard_state[256];
 
-    bool m_listening = true;  // Opens as listening
-    bool m_shift_down = false;
+    LONG m_display_w;
+    LONG m_display_h;
 
-    HWND m_HWND;
-    LONG DISPLAY_W;
-    LONG DISPLAY_H;
-
-    LONG BLOCK_W;
-    LONG BLOCK_H;
-    LONG X_BLOCKS = 20;
-    LONG Y_BLOCKS = 16;
+    LONG m_cell_w;
+    LONG m_cell_h;
+    LONG m_num_cells_x = 20;
+    LONG m_num_cells_y = 16;
 
     wchar_t m_inchar1 = 0;
     wchar_t m_inchar2 = 0;
     
     static constexpr const wchar_t* m_chars = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
+
+    bool m_listening = true;  // Opens as listening
+    bool m_shift_down = false;
+    
 public:
-    Application(HINSTANCE hInstance, int nCmdShow)
+    Application(HINSTANCE h_instance, int nCmdShow)
     {
         ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
-        DISPLAY_W = ::GetSystemMetrics(SM_CXSCREEN);
-        DISPLAY_H = ::GetSystemMetrics(SM_CYSCREEN);
+        m_display_w = ::GetSystemMetrics(SM_CXSCREEN);
+        m_display_h = ::GetSystemMetrics(SM_CYSCREEN);
 
-        BLOCK_W = DISPLAY_W / X_BLOCKS;
-        BLOCK_H = DISPLAY_H / Y_BLOCKS;
+        m_cell_w = m_display_w / m_num_cells_x;
+        m_cell_h = m_display_h / m_num_cells_y;
 
-        // Register program related stuff
+        // Window creation
         {
             const wchar_t class_name[] = L"Keydows";
             WNDCLASSEXW wcex = {0};
             wcex.cbSize = sizeof(wcex);
             wcex.style          = CS_HREDRAW | CS_VREDRAW;
-            wcex.lpfnWndProc    = WndProcWrapper;
-            wcex.hInstance      = hInstance;
+            wcex.lpfnWndProc    = wnd_proc_wrapper;
+            wcex.hInstance      = h_instance;
             wcex.hCursor        = ::LoadCursorW(NULL, IDC_ARROW);
             wcex.hbrBackground  = (HBRUSH)::GetStockObject(BLACK_BRUSH);
             wcex.lpszClassName  = class_name;
             ::RegisterClassExW(&wcex);
 
-            // Create h_wnd
-            m_HWND = ::CreateWindowExW(
+            // Create window handler
+            m_hwnd = ::CreateWindowExW(
                 WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
                 class_name,
-                L"Overlay Window",
+                L"Keydows Overlay Window",
                 WS_POPUP | WS_VISIBLE,
                 0, 0,
-                DISPLAY_W, DISPLAY_H,
+                m_display_w, m_display_h,
                 NULL, NULL,
-                hInstance,
+                h_instance,
                 this
             );
 
             // Store the Application instance in the window's user data field
-            ::SetWindowLongPtr(m_HWND, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+            ::SetWindowLongPtr(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
         }
-        
-        ::SetLayeredWindowAttributes(m_HWND, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
 
-        HKeys::register_key(m_HWND, HKeys::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-        HKeys::register_key(m_HWND, HKeys::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
+        // Keyboard hook
+        {
+            m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
+            if (!m_keyboard_hook)
+                std::cerr << "Failed to install hook!" << std::endl;
+        }
 
-        ::ShowWindow(m_HWND, nCmdShow);
-        ::UpdateWindow(m_HWND);
+        HotKey::register_key(m_hwnd, HotKey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+        HotKey::register_key(m_hwnd, HotKey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
+
+        ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
+        ::ShowWindow(m_hwnd, nCmdShow);
+        ::UpdateWindow(m_hwnd);
     }
 
     int run()
@@ -98,13 +106,21 @@ public:
             ::TranslateMessage(&msg);
             ::DispatchMessageW(&msg);
         }
+
         return (int)msg.wParam;
     }
 
-private:
-    void handle_keydown(WPARAM wParam, LPARAM lParam) // lParam may contain press count !!
+    void destroy_proc()
     {
-        switch (wParam)
+            HotKey::unregister_hotkeys(m_hwnd);
+            ::UnhookWindowsHookEx(m_keyboard_hook);
+            ::PostQuitMessage(0);
+    }
+
+private:
+    void handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may contain press count !!
+    {
+        switch (w_param)
         {
         case VK_ESCAPE:
             if (m_listening)
@@ -124,13 +140,23 @@ private:
 
         case VK_SHIFT:
             m_shift_down = true;
+            std :: cout << "SHIFT\n";
             return;
         }
 
-        wchar_t key_char = towupper(get_key_char(wParam, lParam));
-        if (is_null_char(key_char)) return;
+        std :: cout << "after switch\n";
 
-        // Log keystrokes and in the end handle input
+        if (!m_listening)
+            return;
+
+        wchar_t key_char = towupper(get_key_char(w_param, l_param));
+        if (is_null_char(key_char))
+            return;
+
+        std::cout << "Key pressed: " << (char)key_char << "\n"
+        << "Shift down: " << m_shift_down << "\n";
+        
+        // Log keystrokes and in the end handle input characters
         if (!m_inchar1)
         {
             m_inchar1 = key_char;
@@ -139,7 +165,7 @@ private:
         {
             m_inchar2 = key_char;
         }
-        else if (m_inchar1 && m_inchar2)
+        else if (m_inchar1 && m_inchar2) // KEEP IN MIND w_param == WM_KEYDOWN
         {
             int id1 = get_char_index(m_inchar1);
             int id2 = get_char_index(m_inchar2);
@@ -147,11 +173,11 @@ private:
             LONG x, y;
             char_id_to_coordinates(id1, id2, &x, &y);
 
-            x -= BLOCK_W / 2 * (wParam == 'A' || wParam == 'Q' || wParam == 'X');
-            x += BLOCK_W / 2 * (wParam == 'D' || wParam == 'E' || wParam == 'C');
+            x -= m_cell_w / 2 * (w_param == 'A' || w_param == 'Q' || w_param == 'X');
+            x += m_cell_w / 2 * (w_param == 'D' || w_param == 'E' || w_param == 'C');
 
-            y -= BLOCK_H / 2 * (wParam == 'W' || wParam == 'Q' || wParam == 'E');
-            y += BLOCK_H / 2 * (wParam == 'S' || wParam == 'X' || wParam == 'C');
+            y -= m_cell_h / 2 * (w_param == 'W' || w_param == 'Q' || w_param == 'E');
+            y += m_cell_h / 2 * (w_param == 'S' || w_param == 'X' || w_param == 'C');
 
             if (is_valid_coordinate(x, y)) 
             {
@@ -164,15 +190,16 @@ private:
         }
     }
 
-    void handle_hotkey(WPARAM wParam, BOOL bRepaint=TRUE)
+    void handle_hotkey(WPARAM w_param)
     {
-        switch (wParam)
+        switch (w_param)
         {
-        case HKeys::CLOSE:
-            close();
+        case HotKey::CLOSE:
+            ::DestroyWindow(m_hwnd); // Send WM_DESTROY message
+            std::cout << "HOTKEY CLOSE TRIGGERED\n";
             return;
-        case HKeys::OVERLAY:
-            show_window(!::IsWindowVisible(m_HWND));
+        case HotKey::OVERLAY:
+            show_window(!::IsWindowVisible(m_hwnd));
             return;
         default:
             break;
@@ -196,60 +223,57 @@ private:
         );
 
                 // Draw vertical lines
-                // ::MoveToEx(h_memDC, x-1, 0, NULL);
-                // ::LineTo(h_memDC, x-1, DISPLAY_H);
+                // ::MoveToEx(h_mem_dc, x-1, 0, NULL);
+                // ::LineTo(h_mem_dc, x-1, m_display_h);
 
                 // Draw horizontal lines
-                // ::MoveToEx(h_memDC, 0, y-1, NULL);
-                // ::LineTo(h_memDC, DISPLAY_W, y-1);
+                // ::MoveToEx(h_mem_dc, 0, y-1, NULL);
+                // ::LineTo(h_mem_dc, m_display_w, y-1);
 
-        HDC h_memDC = ::CreateCompatibleDC(h_DC);
+        HDC h_mem_dc = ::CreateCompatibleDC(h_DC);
         HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_DC, rc.right, rc.bottom);
-        HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_memDC, h_mem_bitmap);
+        HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_mem_dc, h_mem_bitmap);
+        ::SetBkMode(h_mem_dc, OPAQUE);     // OPAQUE, TRANSPARENT
 
-        // Set the memory DC for text and line drawing
-        // ::SetTextColor(h_memDC, RGB(255, 255, 255));    // White text color
-        ::SetBkMode(h_memDC, OPAQUE);                   // OPAQUE, TRANSPARENT
-
-        ::SelectObject(h_memDC, h_pen);
-        ::SelectObject(h_memDC, h_font);
+        ::SelectObject(h_mem_dc, h_pen);
+        ::SelectObject(h_mem_dc, h_font);
 
         LONG selx, sely;
         chars_to_coordinates(m_inchar1, m_inchar2, &selx, &sely);
 
-        for (LONG x = 0; x < DISPLAY_W; x += BLOCK_W) {
-            for (LONG y = 0; y < DISPLAY_H; y += BLOCK_H)
+        for (LONG x = 0; x < m_display_w; x += m_cell_w) {
+            for (LONG y = 0; y < m_display_h; y += m_cell_h)
             {
                 // Selected row & col
-                if (x == selx - BLOCK_W / 2 || y == sely - BLOCK_H / 2)
+                if (x == selx - m_cell_w / 2 || y == sely - m_cell_h / 2)
                 {
-                    ::SetBkColor(h_memDC, RGB(255, 255, 255));
-                    ::SetTextColor(h_memDC, RGB(1, 1, 1));
+                    ::SetBkColor(h_mem_dc, RGB(255, 255, 255));
+                    ::SetTextColor(h_mem_dc, RGB(1, 1, 1));
                 }
                 else
                 {
-                    ::SetBkColor(h_memDC, RGB(1, 1, 1));            // True black rgb
-                    ::SetTextColor(h_memDC, RGB(255, 255, 255));
+                    ::SetBkColor(h_mem_dc, RGB(1, 1, 1));            // True black rgb
+                    ::SetTextColor(h_mem_dc, RGB(255, 255, 255));
                 }
 
                 wchar_t cell_chars[3] = {
-                    m_chars[x / BLOCK_W % wcslen(m_chars)],
-                    m_chars[y / BLOCK_H % wcslen(m_chars)],
+                    m_chars[x / m_cell_w % wcslen(m_chars)],
+                    m_chars[y / m_cell_h % wcslen(m_chars)],
                     L'\0'
                 };
                 
-                RECT text_rect = { x, y, x + BLOCK_W, y + BLOCK_H };
-                ::DrawTextW(h_memDC, cell_chars, -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                RECT text_rect = { x, y, x + m_cell_w, y + m_cell_h };
+                ::DrawTextW(h_mem_dc, cell_chars, -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             }
         }
 
         // Copy the memory bitmap to the screen
-        ::BitBlt(h_DC, 0, 0, rc.right, rc.bottom, h_memDC, 0, 0, SRCCOPY);
+        ::BitBlt(h_DC, 0, 0, rc.right, rc.bottom, h_mem_dc, 0, 0, SRCCOPY);
 
         // Cleanup
-        ::SelectObject(h_memDC, h_old_bitmap);
+        ::SelectObject(h_mem_dc, h_old_bitmap);
         ::DeleteObject(h_mem_bitmap);
-        ::DeleteObject(h_memDC);
+        ::DeleteObject(h_mem_dc);
         ::EndPaint(h_wnd, &ps);
     }
 
@@ -258,12 +282,12 @@ private:
         if (show)
         {
             m_listening = true;
+            // ::ShowWindow(m_hwnd, SW_SHOWNORMAL); // SW_SHOWNOACTIVATE Doesn't get focus, SW_SHOWNORMAL gets focus
+            // ::SetForegroundWindow(m_hwnd); // This forces focus anyway
 
-            ::ShowWindow(m_HWND, SW_SHOWNORMAL); // SW_SHOWNOACTIVATE Doesn't get focus, SW_SHOWNORMAL gets focus
-            ::SetForegroundWindow(m_HWND); // This forces focus anyway
-            // ::ShowWindow(m_HWND, SW_SHOWNOACTIVATE);
-            // ::SetWindowPos(m_HWND, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-
+            // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
+            ::ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
+            ::SetWindowPos(m_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         }
         else
         {
@@ -271,15 +295,9 @@ private:
             m_inchar1 = 0; // Reset input
             m_inchar2 = 0;
 
-            force_window_repaint(m_HWND);
-            ::ShowWindow(m_HWND, SW_HIDE);
+            force_window_repaint(m_hwnd);
+            ::ShowWindow(m_hwnd, SW_HIDE);
         }
-    }
-
-    void close()
-    {
-        HKeys::unregister_hotkeys(m_HWND);
-        ::PostQuitMessage(0); 
     }
 
     // Returns -1 for characters not in char list
@@ -292,19 +310,19 @@ private:
         return -1; // Not found
     }
 
-    wchar_t get_key_char(WPARAM wParam, LPARAM lParam)
+    wchar_t get_key_char(WPARAM w_param, LPARAM l_param)
     {
         // This function will return the character corresponding to the key pressed
         BYTE keyboardState[256];   // Array that represents the keyboard state
         ::GetKeyboardState(keyboardState);
 
-        UINT scanCode = (lParam >> 16) & 0xFF;
-        UINT virtualKey = (UINT)wParam;
+        UINT scan_code = (l_param >> 16) & 0xFF;
+        UINT virtualKey = (UINT)w_param;
         
         wchar_t ch = 0;
 
         // ToAscii converts the virtual key code into a character
-        if (::ToAscii(virtualKey, scanCode, keyboardState, (LPWORD)&ch, 0) == 1) {
+        if (::ToAscii(virtualKey, scan_code, keyboardState, (LPWORD)&ch, 0) == 1) {
             return ch;
         }
 
@@ -315,8 +333,8 @@ private:
     // Returns -1 for invalid char id (-1)
     void char_id_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out)
     {
-        *x_out = char_id1 * BLOCK_W + BLOCK_W / 2;
-        *y_out = char_id2 * BLOCK_H + BLOCK_H / 2;
+        *x_out = char_id1 * m_cell_w + m_cell_w / 2;
+        *y_out = char_id2 * m_cell_h + m_cell_h / 2;
 
         if (char_id1 == -1) *x_out = -1;
         if (char_id2 == -1) *y_out = -1;
@@ -334,7 +352,7 @@ private:
 
     bool is_valid_coordinate(LONG x, LONG y)
     {
-        return x >= 0 && x < DISPLAY_W && y >= 0 && y < DISPLAY_H;
+        return x >= 0 && x < m_display_w && y >= 0 && y < m_display_h;
     }
 
     bool is_valid_char(wchar_t c)
@@ -375,45 +393,44 @@ private:
         // Force a repaint of the window by invalidating its client area
         ::InvalidateRect(h_wnd, NULL, erase);     // NULL means the entire client area, TRUE means erase background
         ::UpdateWindow(h_wnd);                   // Force the window to repaint immediately
-    }
-
+}
     //// WINDOW PROCEDURE ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //
-    static LRESULT CALLBACK WndProcWrapper(HWND h_wnd, UINT message, WPARAM wParam, LPARAM lParam)
+    static LRESULT CALLBACK wnd_proc_wrapper(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
     {
         Application* app = reinterpret_cast<Application*>(::GetWindowLongPtr(h_wnd, GWLP_USERDATA));  // Get the Application instance
-        
+
         // Default handling
         if (!app)
         {
-            return ::DefWindowProc(h_wnd, message, wParam, lParam);
+            return ::DefWindowProc(h_wnd, message, w_param, l_param);
         }
         
         // Dispatch messages to the window proc
-        return app->WndProc(h_wnd, message, wParam, lParam);
+        return app->wnd_proc(h_wnd, message, w_param, l_param);
     }
 
-    LRESULT CALLBACK WndProc(HWND h_wnd, UINT message, WPARAM wParam, LPARAM lParam)
+    LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
     {
         switch (message)
         {
         case WM_KEYDOWN:
-            handle_keydown(wParam, lParam);
+            handle_keydown(w_param, l_param);
             force_window_repaint(h_wnd);
             return 0;
 
         case WM_KEYUP:
-            if (wParam == VK_SPACE && m_listening)
+            if (w_param == VK_SPACE && m_listening)
             {
                 return 0;  // Do nothing if not input both
             }
-            else if (wParam == VK_SHIFT)
+            else if (w_param == VK_SHIFT)
             {
                 m_shift_down = false;
             }
 
         case WM_HOTKEY:
-            handle_hotkey(wParam, 0);
+            handle_hotkey(w_param);
             return 0;
 
         case WM_PAINT:
@@ -427,18 +444,71 @@ private:
             return HTCAPTION;
 
         case WM_DESTROY:
-            close();
+            destroy_proc();
             return 0;
 
         default:
             break;
         }
-        return ::DefWindowProc(h_wnd, message, wParam, lParam);
+        return ::DefWindowProc(h_wnd, message, w_param, l_param);
     }
+
+    // Posts keyboard event messages
+    static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param) {
+        /* 
+         * w_param contains event type
+         * l_param contains event data
+        */
+        if (n_code >= 0 && w_param == WM_KEYDOWN)
+        {
+            KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
+
+            WPARAM vk_code = p_keydata->vkCode;         // New w_param
+            LPARAM out_key_data = (LPARAM)p_keydata;    // New l_param
+
+            ::PostMessage(m_hwnd, WM_KEYDOWN, vk_code, out_key_data);
+            return 1;  // Block the key input for the window that has focus
+        }
+        return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
+    }
+
+    // static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param) {
+    //     if (n_code >= 0) {
+    //         KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
+    //         WPARAM vk_code = p_keydata->vkCode;
+
+    //         // Check if the key is being pressed or released
+    //         if (w_param == WM_KEYDOWN) {
+    //             m_keyboard_state[vk_code] = true;  // Mark the key as pressed
+    //         } else if (w_param == WM_KEYUP) {
+    //             m_keyboard_state[vk_code] = false;  // Mark the key as released
+    //         }
+
+    //         // Post all currently pressed keys (you can filter for specific keys or use this logic)
+    //         for (int i = 0; i < 256; ++i) {
+    //             if (m_keyboard_state[i]) {
+    //                 ::PostMessage(m_hwnd, WM_KEYDOWN, i, 0);  // Send keydown event for the currently pressed keys
+    //             }
+    //         }
+
+    //         // Block the key input for the window that has focus
+    //         return 1;
+    //     }
+
+    //     return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
+    // }
+
+
     //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 };
+
+HWND  Application::m_hwnd;
+HHOOK Application::m_keyboard_hook;
+bool Application::m_keyboard_state[256] = { false };  // Static raw C array
+
+
 
 /*
     void handle_message(const MSG *msg)
@@ -450,10 +520,10 @@ private:
 
             for (int key : holdables)
             {
-                // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeystate
+                // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getm_keyboard_state
                 // If the high-order bit is 1, the key is down; otherwise, it is up.
                 //
-                if (::GetKeyState(key) & 0x8000) // & 0x8000)
+                if (::Getm_keyboard_state(key) & 0x8000) // & 0x8000)
                 {
                     held_key = key;
                     break;
@@ -464,10 +534,10 @@ private:
             {
                 // For keys other than those listed in `holdables`
                 //
-                handle_hotkey(msg->wParam);
+                handle_hotkey(msg->w_param);
             }
 
-            else while (::GetKeyState(held_key) & 0x8000)
+            else while (::Getm_keyboard_state(held_key) & 0x8000)
             {
                 // If new hotkey is activated switch to that
                 //
@@ -480,7 +550,7 @@ private:
                     }
                 }
 
-                handle_hotkey(msg->wParam);
+                handle_hotkey(msg->w_param);
                 ::Sleep(MOVE_DURATION);
             }
         }
