@@ -12,6 +12,11 @@
 
 #include "hotkeys.hpp"
 
+/*
+TODO:
+- Key that removes input characters 
+*/
+
 class Application
 {
 private:
@@ -28,8 +33,8 @@ private:
 
     LONG BLOCK_W;
     LONG BLOCK_H;
-    LONG X_BLOCKS = 30;
-    LONG Y_BLOCKS = 20;
+    LONG X_BLOCKS = 20;
+    LONG Y_BLOCKS = 16;
 
     wchar_t m_inchar1 = 0;
     wchar_t m_inchar2 = 0;
@@ -59,7 +64,7 @@ public:
             wcex.lpszClassName  = class_name;
             ::RegisterClassExW(&wcex);
 
-            // Create hWnd
+            // Create h_wnd
             m_HWND = ::CreateWindowExW(
                 WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
                 class_name,
@@ -122,23 +127,19 @@ private:
             return;
         }
 
-        ////  Handle other keystrokes
         wchar_t key_char = towupper(get_key_char(wParam, lParam));
-        
-        // If char not recog
         if (is_null_char(key_char)) return;
 
-
-        if (is_valid_char)
-
-
-        if (is_null_char(m_inchar1))
+        // Log keystrokes and in the end handle input
+        if (!m_inchar1)
         {
-            
+            m_inchar1 = key_char;
         }
-
-        // Triggered at third input
-        if (m_inchar1 && m_inchar2)
+        else if (!m_inchar2)
+        {
+            m_inchar2 = key_char;
+        }
+        else if (m_inchar1 && m_inchar2)
         {
             int id1 = get_char_index(m_inchar1);
             int id2 = get_char_index(m_inchar2);
@@ -161,9 +162,6 @@ private:
             m_inchar1 = 0;
             m_inchar2 = 0;
         }
-
-        else if (is_null_char(m_inchar2)) m_inchar1 = key_char;
-        else if (!is_null_char(m_inchar1)) m_inchar2 = key_char;
     }
 
     void handle_hotkey(WPARAM wParam, BOOL bRepaint=TRUE)
@@ -181,56 +179,57 @@ private:
         }
     }
 
-    void paint_event(HWND hWnd)
+    void paint_event(HWND h_wnd)
     {
         // Get maximized window rect
         RECT rc = {0};
-        ::GetClientRect(hWnd, &rc);
+        ::GetClientRect(h_wnd, &rc);
 
         PAINTSTRUCT ps = {0};
-        HDC hDC = ::BeginPaint(hWnd, &ps);
+        HDC h_DC = ::BeginPaint(h_wnd, &ps);
 
-        static HPEN hPen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
-        static HFONT hFont = ::CreateFont(
+        static HPEN h_pen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
+        static HFONT h_font = ::CreateFont(
             20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
             DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
         );
 
                 // Draw vertical lines
-                // ::MoveToEx(hMemDC, x-1, 0, NULL);
-                // ::LineTo(hMemDC, x-1, DISPLAY_H);
+                // ::MoveToEx(h_memDC, x-1, 0, NULL);
+                // ::LineTo(h_memDC, x-1, DISPLAY_H);
 
                 // Draw horizontal lines
-                // ::MoveToEx(hMemDC, 0, y-1, NULL);
-                // ::LineTo(hMemDC, DISPLAY_W, y-1);
+                // ::MoveToEx(h_memDC, 0, y-1, NULL);
+                // ::LineTo(h_memDC, DISPLAY_W, y-1);
 
-        HDC hMemDC = ::CreateCompatibleDC(hDC);
-        HBITMAP hMemBitmap = ::CreateCompatibleBitmap(hDC, rc.right, rc.bottom);
-        HBITMAP hOldBitmap = (HBITMAP)::SelectObject(hMemDC, hMemBitmap);
+        HDC h_memDC = ::CreateCompatibleDC(h_DC);
+        HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_DC, rc.right, rc.bottom);
+        HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_memDC, h_mem_bitmap);
 
         // Set the memory DC for text and line drawing
-        ::SetTextColor(hMemDC, RGB(255, 255, 255));    // White text color
-        ::SetBkMode(hMemDC, OPAQUE);                   // OPAQUE, TRANSPARENT
+        // ::SetTextColor(h_memDC, RGB(255, 255, 255));    // White text color
+        ::SetBkMode(h_memDC, OPAQUE);                   // OPAQUE, TRANSPARENT
 
-        ::SelectObject(hMemDC, hPen);
-        ::SelectObject(hMemDC, hFont);
+        ::SelectObject(h_memDC, h_pen);
+        ::SelectObject(h_memDC, h_font);
 
         LONG selx, sely;
         chars_to_coordinates(m_inchar1, m_inchar2, &selx, &sely);
-        std::cout << "chars selx: " << selx << " sely: " << sely << "\n";
 
         for (LONG x = 0; x < DISPLAY_W; x += BLOCK_W) {
             for (LONG y = 0; y < DISPLAY_H; y += BLOCK_H)
             {
-                // Set background color based on coordinates
-                if (x > selx && y > sely)
+                // Selected row & col
+                if (x == selx - BLOCK_W / 2 || y == sely - BLOCK_H / 2)
                 {
-                    ::SetBkColor(hMemDC, RGB(1, 255, 1));
+                    ::SetBkColor(h_memDC, RGB(255, 255, 255));
+                    ::SetTextColor(h_memDC, RGB(1, 1, 1));
                 }
                 else
                 {
-                    ::SetBkColor(hMemDC, RGB(1, 1, 1));    // True black rgb
+                    ::SetBkColor(h_memDC, RGB(1, 1, 1));            // True black rgb
+                    ::SetTextColor(h_memDC, RGB(255, 255, 255));
                 }
 
                 wchar_t cell_chars[3] = {
@@ -238,41 +237,42 @@ private:
                     m_chars[y / BLOCK_H % wcslen(m_chars)],
                     L'\0'
                 };
-
-                // Draw text at the center of each block
-                RECT textRect = { x, y, x + BLOCK_W, y + BLOCK_H };
-                ::DrawTextW(hMemDC, cell_chars, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                
+                RECT text_rect = { x, y, x + BLOCK_W, y + BLOCK_H };
+                ::DrawTextW(h_memDC, cell_chars, -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             }
         }
 
         // Copy the memory bitmap to the screen
-        ::BitBlt(hDC, 0, 0, rc.right, rc.bottom, hMemDC, 0, 0, SRCCOPY);
+        ::BitBlt(h_DC, 0, 0, rc.right, rc.bottom, h_memDC, 0, 0, SRCCOPY);
 
         // Cleanup
-        ::SelectObject(hMemDC, hOldBitmap);
-        ::DeleteObject(hMemBitmap);
-        ::DeleteObject(hMemDC);
-
-        ::EndPaint(hWnd, &ps);
+        ::SelectObject(h_memDC, h_old_bitmap);
+        ::DeleteObject(h_mem_bitmap);
+        ::DeleteObject(h_memDC);
+        ::EndPaint(h_wnd, &ps);
     }
 
     void show_window(bool show)
     {
         if (show)
         {
+            m_listening = true;
+
             ::ShowWindow(m_HWND, SW_SHOWNORMAL); // SW_SHOWNOACTIVATE Doesn't get focus, SW_SHOWNORMAL gets focus
             ::SetForegroundWindow(m_HWND); // This forces focus anyway
             // ::ShowWindow(m_HWND, SW_SHOWNOACTIVATE);
             // ::SetWindowPos(m_HWND, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
-            m_listening = true;
         }
         else
         {
-            ::ShowWindow(m_HWND, SW_HIDE);
             m_listening = false;
-            // m_inchar1 = 0; // Reset input
-            // m_inchar2 = 0;
+            m_inchar1 = 0; // Reset input
+            m_inchar2 = 0;
+
+            force_window_repaint(m_HWND);
+            ::ShowWindow(m_HWND, SW_HIDE);
         }
     }
 
@@ -281,9 +281,6 @@ private:
         HKeys::unregister_hotkeys(m_HWND);
         ::PostQuitMessage(0); 
     }
-
-
-
 
     // Returns -1 for characters not in char list
     int get_char_index(wchar_t c) const
@@ -347,12 +344,12 @@ private:
 
     bool is_null_char(wchar_t c)
     {
-        return c == '\0';
+        return c == L'\0';
     }
 
     void click_at(int x, int y, bool right_click=false) const
     {
-        SetCursorPos(x, y);
+        ::SetCursorPos(x, y);
 
         INPUT inputs[2] = {};
         inputs[0].type = INPUT_MOUSE;
@@ -369,36 +366,40 @@ private:
             inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
         }
 
-        SendInput(2, inputs, sizeof(INPUT));
+        ::SendInput(2, inputs, sizeof(INPUT));
     }
 
-
+    void force_window_repaint(HWND h_wnd)
+    {
+        BOOL erase = FALSE;
+        // Force a repaint of the window by invalidating its client area
+        ::InvalidateRect(h_wnd, NULL, erase);     // NULL means the entire client area, TRUE means erase background
+        ::UpdateWindow(h_wnd);                   // Force the window to repaint immediately
+    }
 
     //// WINDOW PROCEDURE ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //
-    static LRESULT CALLBACK WndProcWrapper(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+    static LRESULT CALLBACK WndProcWrapper(HWND h_wnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
-        Application* app = reinterpret_cast<Application*>(::GetWindowLongPtr(hWnd, GWLP_USERDATA));  // Get the Application instance
+        Application* app = reinterpret_cast<Application*>(::GetWindowLongPtr(h_wnd, GWLP_USERDATA));  // Get the Application instance
         
         // Default handling
         if (!app)
         {
-            return ::DefWindowProc(hWnd, message, wParam, lParam);
+            return ::DefWindowProc(h_wnd, message, wParam, lParam);
         }
         
         // Dispatch messages to the window proc
-        return app->WndProc(hWnd, message, wParam, lParam);
+        return app->WndProc(h_wnd, message, wParam, lParam);
     }
 
-    LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+    LRESULT CALLBACK WndProc(HWND h_wnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         switch (message)
         {
         case WM_KEYDOWN:
             handle_keydown(wParam, lParam);
-            // Force a repaint of the window by invalidating its client area
-            InvalidateRect(hWnd, NULL, TRUE);  // NULL means the entire client area, TRUE means erase background
-            // paint_event(hWnd);
+            force_window_repaint(h_wnd);
             return 0;
 
         case WM_KEYUP:
@@ -416,7 +417,7 @@ private:
             return 0;
 
         case WM_PAINT:
-            paint_event(hWnd);
+            paint_event(h_wnd);
             return 0;
 
         case WM_KILLFOCUS:
@@ -432,7 +433,7 @@ private:
         default:
             break;
         }
-        return ::DefWindowProc(hWnd, message, wParam, lParam);
+        return ::DefWindowProc(h_wnd, message, wParam, lParam);
     }
     //
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
