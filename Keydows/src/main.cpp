@@ -1,16 +1,12 @@
-#define STRICT 1
-#define WIN32_LEAN_AND_MEAN
-#define NTDDI_VERSION NTDDI_WINBLUE
 #include <Windows.h>
-#include "core/application.hpp"
+#include "core/application.h"
 
 int APIENTRY WinMain(
-    HINSTANCE hInstance,
+    HINSTANCE h_instance,
     HINSTANCE /*hPrevInstance*/,
     LPSTR    /*lpCmdLine*/,
-    int       nCmdShow
-)
+    int       n_cmd_show)
 {
-    Application app(hInstance, nCmdShow);
+    Application app(h_instance, n_cmd_show);
     return app.run();
 }

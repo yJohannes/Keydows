@@ -43,7 +43,7 @@ private:
     bool m_shift_down = false;
     
 public:
-    Application(HINSTANCE h_instance, int nCmdShow)
+    Application(HINSTANCE h_instance, int n_cmd_show)
     {
         ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
@@ -94,7 +94,7 @@ public:
         HotKey::register_key(m_hwnd, HotKey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
 
         ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
-        ::ShowWindow(m_hwnd, nCmdShow);
+        ::ShowWindow(m_hwnd, n_cmd_show);
         ::UpdateWindow(m_hwnd);
     }
 
