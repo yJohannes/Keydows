@@ -19,8 +19,6 @@
 TODO:
 - Key that removes all input characters 
 - Don't do all repaint rendering on show, use old DC 
-- Start on run instead of what line 42 says
-- HACKY SOLUTION: After typing letter 'd' for example, instantly backspace it.
 */
 
 class Application
@@ -76,8 +74,4 @@ private:
 
     static bool is_valid_char(wchar_t c)
     { return (get_char_index(c) != -1); }
-
-
-
-
 };
