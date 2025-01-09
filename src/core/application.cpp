@@ -1,9 +1,9 @@
 #include "windowsdefs.h"
 #include "application.h"
 
-HWND  Application::m_hwnd;
-HHOOK Application::m_keyboard_hook;
-HHOOK Application::m_mouse_hook;
+HWND  Application::m_hwnd = nullptr;
+HHOOK Application::m_keyboard_hook = nullptr;
+HHOOK Application::m_mouse_hook = nullptr;
 
 LONG Application::m_display_width;
 LONG Application::m_display_height;
@@ -58,8 +58,8 @@ Application::Application(HINSTANCE h_instance)
     }
 
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
-    HotKey::register_key(m_hwnd, HotKey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-    HotKey::register_key(m_hwnd, HotKey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
+    hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+    hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
 
     show_overlay(false);
 }
@@ -84,7 +84,7 @@ int Application::run()
 LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
 {
     switch (message) {
-    case WM_HOTKEY: // Top priority
+    case WM_HOTKEY:
         handle_hotkey(w_param);
         return 0;
 
@@ -94,7 +94,7 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
         return 0;
 
     case WM_PAINT:
-        paint_event(h_wnd);
+        paint_event();
         return 0;
 
     case WM_DESTROY:
@@ -158,7 +158,7 @@ LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_pa
 void Application::destroy_proc()
 {
     detach_hooks();
-    HotKey::unregister_hotkeys(m_hwnd);
+    hotkey::unregister_hotkeys(m_hwnd);
     ::PostQuitMessage(0);
 }
 
@@ -205,13 +205,13 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param)
             m_input_char_2 = NULL_CHAR;
         else if (m_input_char_1)
             m_input_char_1 = NULL_CHAR;
-        force_repaint(m_hwnd);
+        force_repaint();
         return;
 
     case VK_RETURN:
         m_input_char_1 = NULL_CHAR;
         m_input_char_2 = NULL_CHAR;
-        force_repaint(m_hwnd);
+        force_repaint();
         return;
     }
 
@@ -231,14 +231,14 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param)
         if (m_input_char_1 == NULL_CHAR && get_char_index(key_char) < max_horizontal_index)
         {
             m_input_char_1 = key_char;
-            force_repaint(m_hwnd);
+            force_repaint();
             return;
         }
         
         if (m_input_char_2 == NULL_CHAR && get_char_index(key_char) < max_vertical_index)
         {
             m_input_char_2 = key_char;
-            force_repaint(m_hwnd);
+            force_repaint();
             return;
         }
     }
@@ -266,7 +266,7 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param)
         {
             click_at(x, y, is_key_down(VK_SHIFT));
             show_overlay(false);
-            force_repaint(m_hwnd);
+            force_repaint();
         }
     }
 }
@@ -274,31 +274,58 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param)
 void Application::handle_hotkey(WPARAM w_param)
 {
     switch (w_param) {
-    case HotKey::CLOSE:
+    case hotkey::CLOSE:
         ::DestroyWindow(m_hwnd); // Send WM_DESTROY message
         break;
-    case HotKey::OVERLAY:
+    case hotkey::OVERLAY:
         release_key(VK_MENU);
         show_overlay(!::IsWindowVisible(m_hwnd));
         break;
     }
 }
 
-void Application::paint_event(HWND h_wnd)
+void Application::show_overlay(bool show)
 {
+    if (show)
+    {
+        attach_hooks();
+
+        // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
+        ::ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
+        ::SetWindowPos(m_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+    else
+    {
+        detach_hooks();
+
+        m_input_char_1 = NULL_CHAR;
+        m_input_char_2 = NULL_CHAR;
+
+        // Repaint so that the old bitmap is not shown
+        force_repaint();
+        ::ShowWindow(m_hwnd, SW_HIDE);
+    }
+}
+
+void Application::paint_event()
+{
+    // Get maximized window rect
+    static RECT rect = {0};
+    ::GetClientRect(m_hwnd, &rect);
+
     static HPEN h_pen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
     static HFONT h_font = ::CreateFont(
         20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
         DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
     );
+    static PAINTSTRUCT default_ps = {0};
+    static HDC default_hdc = ::BeginPaint(m_hwnd, &default_ps);
+    static HBITMAP default_mem_bitmap = ::CreateCompatibleBitmap(default_hdc, rect.right, rect.bottom);
 
-    // Get maximized window rect
-    RECT rect = {0};
-    ::GetClientRect(h_wnd, &rect);
 
     PAINTSTRUCT ps = {0};
-    HDC h_dc = ::BeginPaint(h_wnd, &ps);
+    HDC h_dc = ::BeginPaint(m_hwnd, &ps);
 
     HDC h_mem_dc = ::CreateCompatibleDC(h_dc);
     HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
@@ -344,37 +371,14 @@ void Application::paint_event(HWND h_wnd)
     ::SelectObject(h_mem_dc, h_old_bitmap);
     ::DeleteObject(h_mem_bitmap);
     ::DeleteObject(h_mem_dc);
-    ::EndPaint(h_wnd, &ps);
+    ::EndPaint(m_hwnd, &ps);
 }
 
-void Application::show_overlay(bool show)
-{
-    if (show)
-    {
-        attach_hooks();
-
-        // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
-        ::ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
-        ::SetWindowPos(m_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    }
-    else
-    {
-        detach_hooks();
-
-        m_input_char_1 = NULL_CHAR;
-        m_input_char_2 = NULL_CHAR;
-
-        // Repaint so that the old bitmap is not shown
-        force_repaint(m_hwnd);
-        ::ShowWindow(m_hwnd, SW_HIDE);
-    }
-}
-
-void Application::force_repaint(HWND h_wnd)
+void Application::force_repaint()
 {
     // Force a repaint of the window by invalidating its client area
-    ::InvalidateRect(h_wnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
-    ::UpdateWindow(h_wnd);                 // Force the window to repaint immediately
+    ::InvalidateRect(m_hwnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
+    ::UpdateWindow(m_hwnd);                 // Force the window to repaint immediately
 }
 
 void Application::click_at(int x, int y, bool right_click)

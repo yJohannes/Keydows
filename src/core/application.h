@@ -4,7 +4,7 @@
 #pragma once
 
 #include <SDKDDKVer.h>
-#include <Windows.h>
+#include <windows.h>
 #include <shellscalingapi.h>
 
 #include <iostream>
@@ -20,7 +20,6 @@ TODO:
 - Key that removes all input characters 
 - Don't do all repaint rendering on show, use old DC 
 */
-
 class Application
 {
 private:
@@ -38,8 +37,7 @@ private:
 
     static wchar_t m_input_char_1;
     static wchar_t m_input_char_2;
-    static constexpr wchar_t* m_chars = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
-
+    static constexpr const wchar_t* m_chars = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
 public:
     Application(HINSTANCE h_instance);
     ~Application();
@@ -55,9 +53,9 @@ private:
 
     static void handle_keydown(WPARAM w_param, LPARAM l_param);
     static void handle_hotkey(WPARAM w_param);
-    static void paint_event(HWND h_wnd);
     static void show_overlay(bool show);
-    static void force_repaint(HWND h_wnd);
+    static void paint_event();
+    static void force_repaint();
     static void click_at(int x, int y, bool right_click);
     static void release_key(int vk_code);
 
