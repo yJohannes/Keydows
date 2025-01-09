@@ -11,6 +11,3 @@ include_directories(src)
 add_definitions(-DUNICODE -D_UNICODE)
 add_executable(keydows ${SOURCES})
 target_link_libraries(keydows user32 gdi32 shcore gdiplus)
-
-# Powershell build + run 
-# cmake --build .; ./build/keydows.exe
