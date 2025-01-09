@@ -28,15 +28,15 @@ private:
     static HHOOK m_keyboard_hook;
     static HHOOK m_mouse_hook;
 
-    static LONG m_display_w;
-    static LONG m_display_h;
+    static LONG m_display_width;
+    static LONG m_display_height;
 
     static LONG m_block_width;
     static LONG m_block_height;
     static LONG m_horizontal_blocks;
     static LONG m_vertical_blocks;
 
-    static bool m_listening;
+    static bool m_overlay_active;
     static wchar_t m_input_char_1;
     static wchar_t m_input_char_2;
     static constexpr const wchar_t* m_chars = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
@@ -51,14 +51,13 @@ private:
     static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static void destroy_proc();
-
     static void attach_hooks();
     static void detach_hooks();
 
     static void handle_keydown(WPARAM w_param, LPARAM l_param);
     static void handle_hotkey(WPARAM w_param);
     static void paint_event(HWND h_wnd);
-    static void show_window(bool show);
+    static void show_overlay(bool show);
     static void force_repaint(HWND h_wnd);
     static void click_at(int x, int y, bool right_click);
     static void release_key(int vk_code);
@@ -70,7 +69,7 @@ private:
     static void chars_to_coordinates(wchar_t c1, wchar_t c2, LONG* x_out, LONG* y_out);
 
     static bool is_valid_coordinate(LONG x, LONG y)
-    { return x >= 0 && x < m_display_w && y >= 0 && y < m_display_h; }
+    { return x >= 0 && x < m_display_width && y >= 0 && y < m_display_height; }
 
     static bool is_valid_char(wchar_t c)
     { return (get_char_index(c) != -1); }

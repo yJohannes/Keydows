@@ -5,8 +5,8 @@ HWND  Application::m_hwnd;
 HHOOK Application::m_keyboard_hook;
 HHOOK Application::m_mouse_hook;
 
-LONG Application::m_display_w;
-LONG Application::m_display_h;
+LONG Application::m_display_width;
+LONG Application::m_display_height;
 
 LONG Application::m_block_width;
 LONG Application::m_block_height;
@@ -15,18 +15,17 @@ LONG Application::m_vertical_blocks = 22;
 
 wchar_t Application::m_input_char_1 = NULL_CHAR;
 wchar_t Application::m_input_char_2 = NULL_CHAR;
-
-bool Application::m_listening = false;
+bool Application::m_overlay_active = false;
 
 Application::Application(HINSTANCE h_instance)
 {
     ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
-    m_display_w = ::GetSystemMetrics(SM_CXSCREEN);
-    m_display_h = ::GetSystemMetrics(SM_CYSCREEN);
+    m_display_width = ::GetSystemMetrics(SM_CXSCREEN);
+    m_display_height = ::GetSystemMetrics(SM_CYSCREEN);
 
-    m_block_width = m_display_w / m_horizontal_blocks;
-    m_block_height = m_display_h / m_vertical_blocks;
+    m_block_width = m_display_width / m_horizontal_blocks;
+    m_block_height = m_display_height / m_vertical_blocks;
 
     // Window creation
     {
@@ -48,23 +47,18 @@ Application::Application(HINSTANCE h_instance)
             L"Keydows Overlay Window",
             WS_POPUP | WS_VISIBLE,
             0, 0,
-            m_display_w, m_display_h,
+            m_display_width, m_display_height,
             NULL, NULL,
             h_instance,
             this
         );
-
-        // Store the Application instance in the window's user data field
-        ::SetWindowLongPtr(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
     }
 
-    attach_hooks();
-
+    ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
     HotKey::register_key(m_hwnd, HotKey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
     HotKey::register_key(m_hwnd, HotKey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
 
-    ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
-    show_window(false);
+    show_overlay(false);
 }
 
 Application::~Application()
@@ -96,28 +90,17 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
         handle_keydown(w_param, l_param);
         return 0;
 
-    case WM_KEYUP:
-        if (w_param == VK_SPACE && m_listening)
-            return 0;  // Do nothing if not input both
-
     case WM_PAINT:
         paint_event(h_wnd);
         return 0;
-
-    case WM_KILLFOCUS:
-        show_window(false);
-
-    case WM_NCHITTEST:
-        return HTCAPTION;
 
     case WM_DESTROY:
         destroy_proc();
         return 0;
 
     default:
-        break;
+        return ::DefWindowProc(h_wnd, message, w_param, l_param);
     }
-    return ::DefWindowProc(h_wnd, message, w_param, l_param);
 }
 
 // Posts keyboard event messages
@@ -126,20 +109,22 @@ LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l
     // w_param contains event type
     // l_param contains event data
 
-    if (m_listening && n_code >= 0)
+    if (m_overlay_active && n_code >= 0)
     {
         KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
 
         WPARAM vk_code = p_keydata->vkCode;         // New w_param
         LPARAM out_key_data = (LPARAM)p_keydata;    // New l_param
 
-        // Allow shift to pass because so that right click detection works
-        if ((vk_code == VK_SHIFT) || (vk_code == VK_LSHIFT) | (vk_code == VK_RSHIFT))
+        // Allow certain mod keys to pass
+        if ((vk_code == VK_SHIFT) || (vk_code == VK_LSHIFT) || (vk_code == VK_RSHIFT) ||
+            (vk_code == VK_LWIN) || (vk_code == VK_RWIN))
+            // (vk_code == VK_MENU) || (vk_code == VK_LMENU) || (vk_code == VK_RMENU))
             return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
 
         std::cout
         << "Key caught:\t" << vk_code << " char: " << (char)vk_code << "\n"
-        << "m_listening:\t" << m_listening << "\n";
+        << "m_overlay_active:\t" << m_overlay_active << "\n";
 
         switch (w_param) {
         case WM_KEYDOWN:
@@ -150,12 +135,23 @@ LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l
             return 1;  // Block the key input for further receivers
         }
     }
+
+    // Pass the input to further receivers
     return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
 }
 
 LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    return 0;
+    if (n_code == HC_ACTION)
+    {
+        if ((w_param == WM_LBUTTONDOWN) || (w_param == WM_RBUTTONDOWN))
+        {
+            show_overlay(false);
+        }
+    }
+
+    // Pass the input to further receivers
+    return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
 }
 
 void Application::destroy_proc()
@@ -173,7 +169,7 @@ void Application::attach_hooks()
 
     m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
     if (!m_mouse_hook)
-        std::cerr << "Failed to install keyboard hook!" << std::endl;
+        std::cerr << "Failed to install mouse hook!" << std::endl;
 }
 
 void Application::detach_hooks()
@@ -192,31 +188,30 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
     case VK_F4:
         ::DestroyWindow(m_hwnd);
         return;
+
     case VK_ESCAPE:
-        if (m_listening)
-        {
-            show_window(false);
-        }
+        show_overlay(false);
         return;
 
-    // Remove a typed key
-    case VK_BACK:
-        if (m_listening)
+    case VK_BACK:  // Remove a typed key
+        if (m_overlay_active)
         {
             if (m_input_char_2)
                 m_input_char_2 = NULL_CHAR;
             else if (m_input_char_1)
                 m_input_char_1 = NULL_CHAR;
         }
+        force_repaint(m_hwnd);
         return;
 
-    // Go above windows tray (maybe)
-    case VK_RWIN:
-    case VK_LWIN:
-        show_window(true);
+    case VK_RETURN:
+        m_input_char_1 = NULL_CHAR;
+        m_input_char_2 = NULL_CHAR;
+        force_repaint(m_hwnd);
+        return;
     }
 
-    if (!m_listening)
+    if (!m_overlay_active) // Redundant checks after unhooking?
         return;
 
     wchar_t key_char = towupper(get_key_char(w_param, l_param));
@@ -225,16 +220,25 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
     if (key_char == NULL_CHAR)
         return;
 
-    // Log keystrokes and in the end handle input characters
-    if (m_input_char_1 == NULL_CHAR)
+    // Accept only valid chars for input
+    if (is_valid_char(key_char))
     {
-        m_input_char_1 = key_char;
+        if (m_input_char_1 == NULL_CHAR)
+        {
+            m_input_char_1 = key_char;
+            force_repaint(m_hwnd);  // Force repaint after to apply/remove highlights
+            return;
+        }
+        else if (m_input_char_2 == NULL_CHAR)
+        {
+            m_input_char_2 = key_char;
+            force_repaint(m_hwnd);
+            return;
+        }
     }
-    else if (m_input_char_2 == NULL_CHAR)
-    {
-        m_input_char_2 = key_char;
-    }
-    else if (m_input_char_1 && m_input_char_2) // KEEP IN MIND w_param == WM_KEYDOWN
+
+    // Any third key will trigger
+    if (m_input_char_1 && m_input_char_2)
     {
         int id1 = get_char_index(m_input_char_1);
         int id2 = get_char_index(m_input_char_2);
@@ -248,20 +252,17 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         y -= m_block_height / 2 * (w_param == 'W' || w_param == 'Q' || w_param == 'E');
         y += m_block_height / 2 * (w_param == 'S' || w_param == 'X' || w_param == 'C');
 
-        if (is_valid_coordinate(x, y)) 
-        {
-            click_at(x, y, is_key_down(VK_SHIFT));
-            // show_window(FALSE);
-            // return;
-        }
-
         // Reset pressed chars (will be changed with multi-click being added)
         m_input_char_1 = NULL_CHAR;
         m_input_char_2 = NULL_CHAR;
-    }
 
-    // Force repaint after changed to apply highlights
-    force_repaint(m_hwnd);
+        if (is_valid_coordinate(x, y)) 
+        {
+            click_at(x, y, is_key_down(VK_SHIFT));
+            show_overlay(false);
+            force_repaint(m_hwnd);
+        }
+    }
 }
 
 void Application::handle_hotkey(WPARAM w_param)
@@ -272,9 +273,7 @@ void Application::handle_hotkey(WPARAM w_param)
         break;
     case HotKey::OVERLAY:
         release_key(VK_MENU);
-        show_window(!::IsWindowVisible(m_hwnd));
-        break;
-    default:
+        show_overlay(!::IsWindowVisible(m_hwnd));
         break;
     }
 }
@@ -297,11 +296,11 @@ void Application::paint_event(HWND h_wnd)
 
             // Draw vertical lines
             // ::MoveToEx(h_mem_dc, x-1, 0, NULL);
-            // ::LineTo(h_mem_dc, x-1, m_display_h);
+            // ::LineTo(h_mem_dc, x-1, m_display_height);
 
             // Draw horizontal lines
             // ::MoveToEx(h_mem_dc, 0, y-1, NULL);
-            // ::LineTo(h_mem_dc, m_display_w, y-1);
+            // ::LineTo(h_mem_dc, m_display_width, y-1);
 
     HDC h_mem_dc = ::CreateCompatibleDC(h_DC);
     HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_DC, rc.right, rc.bottom);
@@ -314,8 +313,8 @@ void Application::paint_event(HWND h_wnd)
     LONG selx, sely;
     chars_to_coordinates(m_input_char_1, m_input_char_2, &selx, &sely);
 
-    for (LONG x = 0; x < m_display_w; x += m_block_width) {
-        for (LONG y = 0; y < m_display_h; y += m_block_height)
+    for (LONG x = 0; x < m_display_width; x += m_block_width) {
+        for (LONG y = 0; y < m_display_height; y += m_block_height)
         {
             // Selected row & col
             if (x == selx - m_block_width / 2 || y == sely - m_block_height / 2)
@@ -350,19 +349,22 @@ void Application::paint_event(HWND h_wnd)
     ::EndPaint(h_wnd, &ps);
 }
 
-void Application::show_window(bool show)
+void Application::show_overlay(bool show)
 {
     if (show)
     {
-        m_listening = true;
- 
+        m_overlay_active = true;
+        attach_hooks();
+
         // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
         ::ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
         ::SetWindowPos(m_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
     else
     {
-        m_listening = false;
+        m_overlay_active = false;
+        detach_hooks();
+
         m_input_char_1 = NULL_CHAR; // Reset input
         m_input_char_2 = NULL_CHAR;
 
@@ -438,20 +440,17 @@ bool Application::is_key_down(int virtual_key)
 wchar_t Application::get_key_char(WPARAM w_param, LPARAM l_param)
 {
     // This function will return the character corresponding to the key pressed
-    BYTE keyboardState[256];   // Array that represents the keyboard state
-    ::GetKeyboardState(keyboardState);
+    BYTE kb_state[256];   // Array that represents the keyboard state
+    ::GetKeyboardState(kb_state);
 
     UINT scan_code = (l_param >> 16) & 0xFF;
-    UINT virtualKey = (UINT)w_param;
+    UINT vk = (UINT)w_param;
     
     wchar_t ch = 0;
-
-    // ToAscii converts the virtual key code into a character
-    if (::ToAscii(virtualKey, scan_code, keyboardState, (LPWORD)&ch, 0) == 1) {
+    if (::ToAscii(vk, scan_code, kb_state, (LPWORD)&ch, 0) == 1)
         return ch;
-    }
-
-    return 0; // null if no character was generated
+    
+    return NULL_CHAR;
 }
 
 // Returns -1 for invalid char id (-1)
