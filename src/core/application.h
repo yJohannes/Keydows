@@ -65,7 +65,7 @@ private:
     static bool is_key_down(int vk_code);
     static wchar_t get_key_char(WPARAM w_param, LPARAM l_param);
     static int get_char_index(wchar_t c);
-    static void char_id_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out);
+    static void char_ids_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out);
     static void chars_to_coordinates(wchar_t c1, wchar_t c2, LONG* x_out, LONG* y_out);
 
     static bool is_valid_coordinate(LONG x, LONG y)

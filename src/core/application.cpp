@@ -119,7 +119,6 @@ LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l
         // Allow certain mod keys to pass
         if ((vk_code == VK_SHIFT) || (vk_code == VK_LSHIFT) || (vk_code == VK_RSHIFT) ||
             (vk_code == VK_LWIN) || (vk_code == VK_RWIN))
-            // (vk_code == VK_MENU) || (vk_code == VK_LMENU) || (vk_code == VK_RMENU))
             return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
 
         std::cout
@@ -215,7 +214,7 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         return;
 
     wchar_t key_char = towupper(get_key_char(w_param, l_param));
-    std::cout << "VK char:\t" << (char)key_char << "\n";
+    std::cout << "-> VK char:\t" << (char)key_char << "\n";
 
     if (key_char == NULL_CHAR)
         return;
@@ -223,6 +222,25 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
     // Accept only valid chars for input
     if (is_valid_char(key_char))
     {
+        // Laske max char
+        int max_horizontal_index = m_display_width / m_block_width;
+        int max_vertical_index = m_display_height / m_block_height;
+
+        std::cout
+        << (get_char_index(m_input_char_1)) << "\n"
+        << (get_char_index(m_input_char_2)) << "\nEND INDICES\n";
+        
+        // if (get_char_index(m_input_char_1) > max_horizontal_index)
+        // {
+        //     std::cout << "in1\n";
+        //     return;
+        // }
+        // if (get_char_index(m_input_char_2) > max_vertical_index)
+        // {
+        //     std::cout << "in2\n";
+        //     return;
+        // }
+
         if (m_input_char_1 == NULL_CHAR)
         {
             m_input_char_1 = key_char;
@@ -244,7 +262,7 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         int id2 = get_char_index(m_input_char_2);
 
         LONG x, y;
-        char_id_to_coordinates(id1, id2, &x, &y);
+        char_ids_to_coordinates(id1, id2, &x, &y);
 
         x -= m_block_width / 2 * (w_param == 'A' || w_param == 'Q' || w_param == 'X');
         x += m_block_width / 2 * (w_param == 'D' || w_param == 'E' || w_param == 'C');
@@ -454,7 +472,7 @@ wchar_t Application::get_key_char(WPARAM w_param, LPARAM l_param)
 }
 
 // Returns -1 for invalid char id (-1)
-void Application::char_id_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out)
+void Application::char_ids_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out)
 {
     *x_out = char_id1 * m_block_width + m_block_width / 2;
     *y_out = char_id2 * m_block_height + m_block_height / 2;
@@ -468,6 +486,6 @@ void Application::chars_to_coordinates(wchar_t c1, wchar_t c2, LONG* x_out, LONG
 {
     int id1 = get_char_index(c1);
     int id2 = get_char_index(c2);
-    char_id_to_coordinates(id1, id2, x_out, y_out);
+    char_ids_to_coordinates(id1, id2, x_out, y_out);
 }
 #pragma endregion
