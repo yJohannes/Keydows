@@ -15,8 +15,12 @@ LONG Application::m_vertical_blocks = 22;
 
 wchar_t Application::m_input_char_1 = NULL_CHAR;
 wchar_t Application::m_input_char_2 = NULL_CHAR;
-bool Application::m_overlay_active = false;
 
+/*
+ * Creates the Keydows overlay application that uses a low-level
+ * mouse and keyboard hook to catch keystrokes. The overlay never
+ * obtains focus and therefore only relies on said hooks.
+ */
 Application::Application(HINSTANCE h_instance)
 {
     ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
@@ -40,7 +44,6 @@ Application::Application(HINSTANCE h_instance)
         wcex.lpszClassName  = class_name;
         ::RegisterClassExW(&wcex);
 
-        // Create window handler
         m_hwnd = ::CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
             class_name,
@@ -103,28 +106,26 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
     }
 }
 
-// Posts keyboard event messages
+// Posts keyboard event messages for wnd_proc to process
 LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
     // w_param contains event type
     // l_param contains event data
-
-    if (m_overlay_active && n_code >= 0)
+    if (n_code >= 0)
     {
         KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
 
-        WPARAM vk_code = p_keydata->vkCode;         // New w_param
-        LPARAM out_key_data = (LPARAM)p_keydata;    // New l_param
+        WPARAM vk_code = p_keydata->vkCode;
+        LPARAM out_key_data = (LPARAM)p_keydata;
 
-        // Allow certain mod keys to pass
-        if ((vk_code == VK_SHIFT) || (vk_code == VK_LSHIFT) || (vk_code == VK_RSHIFT) ||
-            (vk_code == VK_LWIN) || (vk_code == VK_RWIN))
-            // (vk_code == VK_MENU) || (vk_code == VK_LMENU) || (vk_code == VK_RMENU))
+        // Allow certain mod keys to pass, shift for right click
+        if (vk_code == VK_SHIFT || vk_code == VK_LSHIFT || vk_code == VK_RSHIFT ||
+            vk_code == VK_LWIN || vk_code == VK_RWIN)
+        {
             return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
+        }
 
-        std::cout
-        << "Key caught:\t" << vk_code << " char: " << (char)vk_code << "\n"
-        << "m_overlay_active:\t" << m_overlay_active << "\n";
+        std::cout << "Key caught:\t" << vk_code << " char: " << (char)vk_code << "\n";
 
         switch (w_param) {
         case WM_KEYDOWN:
@@ -165,11 +166,17 @@ void Application::attach_hooks()
 {
     m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
     if (!m_keyboard_hook)
+    {
         std::cerr << "Failed to install keyboard hook!" << std::endl;
+        ::MessageBox(NULL, L"Failed to install keyboard hook!", L"Error", MB_ICONERROR | MB_OK);
+    }
 
     m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
     if (!m_mouse_hook)
+    {
         std::cerr << "Failed to install mouse hook!" << std::endl;
+        ::MessageBox(NULL, L"Failed to install mouse hook!", L"Error", MB_ICONERROR | MB_OK);
+    }
 }
 
 void Application::detach_hooks()
@@ -180,7 +187,7 @@ void Application::detach_hooks()
 #pragma endregion
 
 #pragma region Window handlers
-void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may contain press count !!
+void Application::handle_keydown(WPARAM w_param, LPARAM l_param)
 {
     std::cout << "VK pressed:\t" << w_param << "\n";
 
@@ -194,13 +201,10 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         return;
 
     case VK_BACK:  // Remove a typed key
-        if (m_overlay_active)
-        {
-            if (m_input_char_2)
-                m_input_char_2 = NULL_CHAR;
-            else if (m_input_char_1)
-                m_input_char_1 = NULL_CHAR;
-        }
+        if (m_input_char_2)
+            m_input_char_2 = NULL_CHAR;
+        else if (m_input_char_1)
+            m_input_char_1 = NULL_CHAR;
         force_repaint(m_hwnd);
         return;
 
@@ -211,25 +215,27 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         return;
     }
 
-    if (!m_overlay_active) // Redundant checks after unhooking?
-        return;
-
     wchar_t key_char = towupper(get_key_char(w_param, l_param));
-    std::cout << "VK char:\t" << (char)key_char << "\n";
+    std::cout << "-> VK char:\t" << (char)key_char << "\n";
 
     if (key_char == NULL_CHAR)
         return;
 
     // Accept only valid chars for input
+    // Force repaint after to apply/remove highlights
     if (is_valid_char(key_char))
     {
-        if (m_input_char_1 == NULL_CHAR)
+        int max_horizontal_index = m_display_width / m_block_width;
+        int max_vertical_index = m_display_height / m_block_height;
+
+        if (m_input_char_1 == NULL_CHAR && get_char_index(key_char) < max_horizontal_index)
         {
             m_input_char_1 = key_char;
-            force_repaint(m_hwnd);  // Force repaint after to apply/remove highlights
+            force_repaint(m_hwnd);
             return;
         }
-        else if (m_input_char_2 == NULL_CHAR)
+        
+        if (m_input_char_2 == NULL_CHAR && get_char_index(key_char) < max_vertical_index)
         {
             m_input_char_2 = key_char;
             force_repaint(m_hwnd);
@@ -244,7 +250,7 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         int id2 = get_char_index(m_input_char_2);
 
         LONG x, y;
-        char_id_to_coordinates(id1, id2, &x, &y);
+        char_ids_to_coordinates(id1, id2, &x, &y);
 
         x -= m_block_width / 2 * (w_param == 'A' || w_param == 'Q' || w_param == 'X');
         x += m_block_width / 2 * (w_param == 'D' || w_param == 'E' || w_param == 'C');
@@ -280,13 +286,6 @@ void Application::handle_hotkey(WPARAM w_param)
 
 void Application::paint_event(HWND h_wnd)
 {
-    // Get maximized window rect
-    RECT rc = {0};
-    ::GetClientRect(h_wnd, &rc);
-
-    PAINTSTRUCT ps = {0};
-    HDC h_DC = ::BeginPaint(h_wnd, &ps);
-
     static HPEN h_pen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
     static HFONT h_font = ::CreateFont(
         20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
@@ -294,37 +293,36 @@ void Application::paint_event(HWND h_wnd)
         DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
     );
 
-            // Draw vertical lines
-            // ::MoveToEx(h_mem_dc, x-1, 0, NULL);
-            // ::LineTo(h_mem_dc, x-1, m_display_height);
+    // Get maximized window rect
+    RECT rect = {0};
+    ::GetClientRect(h_wnd, &rect);
 
-            // Draw horizontal lines
-            // ::MoveToEx(h_mem_dc, 0, y-1, NULL);
-            // ::LineTo(h_mem_dc, m_display_width, y-1);
+    PAINTSTRUCT ps = {0};
+    HDC h_dc = ::BeginPaint(h_wnd, &ps);
 
-    HDC h_mem_dc = ::CreateCompatibleDC(h_DC);
-    HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_DC, rc.right, rc.bottom);
+    HDC h_mem_dc = ::CreateCompatibleDC(h_dc);
+    HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
     HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_mem_dc, h_mem_bitmap);
-    ::SetBkMode(h_mem_dc, OPAQUE);     // OPAQUE, TRANSPARENT
+    ::SetBkMode(h_mem_dc, OPAQUE);
 
     ::SelectObject(h_mem_dc, h_pen);
     ::SelectObject(h_mem_dc, h_font);
 
-    LONG selx, sely;
-    chars_to_coordinates(m_input_char_1, m_input_char_2, &selx, &sely);
+    LONG sel_x, sel_y;
+    chars_to_coordinates(m_input_char_1, m_input_char_2, &sel_x, &sel_y);
 
     for (LONG x = 0; x < m_display_width; x += m_block_width) {
         for (LONG y = 0; y < m_display_height; y += m_block_height)
         {
-            // Selected row & col
-            if (x == selx - m_block_width / 2 || y == sely - m_block_height / 2)
+            // Highlight selected row & col
+            if (x == sel_x - m_block_width / 2 || y == sel_y - m_block_height / 2)
             {
                 ::SetBkColor(h_mem_dc, RGB(255, 255, 255));
                 ::SetTextColor(h_mem_dc, RGB(1, 1, 1));
             }
             else
             {
-                ::SetBkColor(h_mem_dc, RGB(1, 1, 1));            // True black rgb
+                ::SetBkColor(h_mem_dc, RGB(1, 1, 1));          // True black rgb
                 ::SetTextColor(h_mem_dc, RGB(255, 255, 255));
             }
 
@@ -340,7 +338,7 @@ void Application::paint_event(HWND h_wnd)
     }
 
     // Copy the memory bitmap to the screen
-    ::BitBlt(h_DC, 0, 0, rc.right, rc.bottom, h_mem_dc, 0, 0, SRCCOPY);
+    ::BitBlt(h_dc, 0, 0, rect.right, rect.bottom, h_mem_dc, 0, 0, SRCCOPY);
 
     // Cleanup
     ::SelectObject(h_mem_dc, h_old_bitmap);
@@ -353,7 +351,6 @@ void Application::show_overlay(bool show)
 {
     if (show)
     {
-        m_overlay_active = true;
         attach_hooks();
 
         // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
@@ -362,14 +359,12 @@ void Application::show_overlay(bool show)
     }
     else
     {
-        m_overlay_active = false;
         detach_hooks();
 
-        m_input_char_1 = NULL_CHAR; // Reset input
+        m_input_char_1 = NULL_CHAR;
         m_input_char_2 = NULL_CHAR;
 
-        // test to repaint before showing so that the old bitmap is not shown
-        // There is a better way though
+        // Repaint so that the old bitmap is not shown
         force_repaint(m_hwnd);
         ::ShowWindow(m_hwnd, SW_HIDE);
     }
@@ -408,6 +403,8 @@ void Application::click_at(int x, int y, bool right_click)
     ::SendInput(2, inputs, sizeof(INPUT));
 }
 
+// Used for releasing specifially the alt key so it doesn't get
+// left on hold after overlay is activated
 void Application::release_key(int vk_code)
 {
     INPUT input = {0};
@@ -454,7 +451,7 @@ wchar_t Application::get_key_char(WPARAM w_param, LPARAM l_param)
 }
 
 // Returns -1 for invalid char id (-1)
-void Application::char_id_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out)
+void Application::char_ids_to_coordinates(int char_id1, int char_id2, LONG* x_out, LONG* y_out)
 {
     *x_out = char_id1 * m_block_width + m_block_width / 2;
     *y_out = char_id2 * m_block_height + m_block_height / 2;
@@ -468,6 +465,6 @@ void Application::chars_to_coordinates(wchar_t c1, wchar_t c2, LONG* x_out, LONG
 {
     int id1 = get_char_index(c1);
     int id2 = get_char_index(c2);
-    char_id_to_coordinates(id1, id2, x_out, y_out);
+    char_ids_to_coordinates(id1, id2, x_out, y_out);
 }
 #pragma endregion
