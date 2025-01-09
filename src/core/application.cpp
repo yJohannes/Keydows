@@ -17,6 +17,11 @@ wchar_t Application::m_input_char_1 = NULL_CHAR;
 wchar_t Application::m_input_char_2 = NULL_CHAR;
 bool Application::m_overlay_active = false;
 
+/*
+ * Creates the Keydows overlay application that uses a low-level
+ * mouse and keyboard hook to catch keystrokes. The overlay never
+ * obtains focus and therefore only relies on said hooks.
+ */
 Application::Application(HINSTANCE h_instance)
 {
     ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
@@ -121,9 +126,7 @@ LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l
             (vk_code == VK_LWIN) || (vk_code == VK_RWIN))
             return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
 
-        std::cout
-        << "Key caught:\t" << vk_code << " char: " << (char)vk_code << "\n"
-        << "m_overlay_active:\t" << m_overlay_active << "\n";
+        std::cout << "Key caught:\t" << vk_code << " char: " << (char)vk_code << "\n";
 
         switch (w_param) {
         case WM_KEYDOWN:
@@ -220,34 +223,20 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         return;
 
     // Accept only valid chars for input
+    // Force repaint after to apply/remove highlights
     if (is_valid_char(key_char))
     {
-        // Laske max char
         int max_horizontal_index = m_display_width / m_block_width;
         int max_vertical_index = m_display_height / m_block_height;
 
-        std::cout
-        << (get_char_index(m_input_char_1)) << "\n"
-        << (get_char_index(m_input_char_2)) << "\nEND INDICES\n";
-        
-        // if (get_char_index(m_input_char_1) > max_horizontal_index)
-        // {
-        //     std::cout << "in1\n";
-        //     return;
-        // }
-        // if (get_char_index(m_input_char_2) > max_vertical_index)
-        // {
-        //     std::cout << "in2\n";
-        //     return;
-        // }
-
-        if (m_input_char_1 == NULL_CHAR)
+        if (m_input_char_1 == NULL_CHAR && get_char_index(key_char) <= max_horizontal_index)
         {
             m_input_char_1 = key_char;
-            force_repaint(m_hwnd);  // Force repaint after to apply/remove highlights
+            force_repaint(m_hwnd);
             return;
         }
-        else if (m_input_char_2 == NULL_CHAR)
+        
+        if (m_input_char_2 == NULL_CHAR && get_char_index(key_char) <= max_vertical_index)
         {
             m_input_char_2 = key_char;
             force_repaint(m_hwnd);
@@ -298,13 +287,6 @@ void Application::handle_hotkey(WPARAM w_param)
 
 void Application::paint_event(HWND h_wnd)
 {
-    // Get maximized window rect
-    RECT rc = {0};
-    ::GetClientRect(h_wnd, &rc);
-
-    PAINTSTRUCT ps = {0};
-    HDC h_DC = ::BeginPaint(h_wnd, &ps);
-
     static HPEN h_pen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
     static HFONT h_font = ::CreateFont(
         20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
@@ -312,37 +294,36 @@ void Application::paint_event(HWND h_wnd)
         DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
     );
 
-            // Draw vertical lines
-            // ::MoveToEx(h_mem_dc, x-1, 0, NULL);
-            // ::LineTo(h_mem_dc, x-1, m_display_height);
+    // Get maximized window rect
+    RECT rect = {0};
+    ::GetClientRect(h_wnd, &rect);
 
-            // Draw horizontal lines
-            // ::MoveToEx(h_mem_dc, 0, y-1, NULL);
-            // ::LineTo(h_mem_dc, m_display_width, y-1);
+    PAINTSTRUCT ps = {0};
+    HDC h_dc = ::BeginPaint(h_wnd, &ps);
 
-    HDC h_mem_dc = ::CreateCompatibleDC(h_DC);
-    HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_DC, rc.right, rc.bottom);
+    HDC h_mem_dc = ::CreateCompatibleDC(h_dc);
+    HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
     HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_mem_dc, h_mem_bitmap);
-    ::SetBkMode(h_mem_dc, OPAQUE);     // OPAQUE, TRANSPARENT
+    ::SetBkMode(h_mem_dc, OPAQUE);
 
     ::SelectObject(h_mem_dc, h_pen);
     ::SelectObject(h_mem_dc, h_font);
 
-    LONG selx, sely;
-    chars_to_coordinates(m_input_char_1, m_input_char_2, &selx, &sely);
+    LONG sel_x, sel_y;
+    chars_to_coordinates(m_input_char_1, m_input_char_2, &sel_x, &sel_y);
 
     for (LONG x = 0; x < m_display_width; x += m_block_width) {
         for (LONG y = 0; y < m_display_height; y += m_block_height)
         {
-            // Selected row & col
-            if (x == selx - m_block_width / 2 || y == sely - m_block_height / 2)
+            // Highlight selected row & col
+            if (x == sel_x - m_block_width / 2 || y == sel_y - m_block_height / 2)
             {
                 ::SetBkColor(h_mem_dc, RGB(255, 255, 255));
                 ::SetTextColor(h_mem_dc, RGB(1, 1, 1));
             }
             else
             {
-                ::SetBkColor(h_mem_dc, RGB(1, 1, 1));            // True black rgb
+                ::SetBkColor(h_mem_dc, RGB(1, 1, 1));          // True black rgb
                 ::SetTextColor(h_mem_dc, RGB(255, 255, 255));
             }
 
@@ -358,7 +339,7 @@ void Application::paint_event(HWND h_wnd)
     }
 
     // Copy the memory bitmap to the screen
-    ::BitBlt(h_DC, 0, 0, rc.right, rc.bottom, h_mem_dc, 0, 0, SRCCOPY);
+    ::BitBlt(h_dc, 0, 0, rect.right, rect.bottom, h_mem_dc, 0, 0, SRCCOPY);
 
     // Cleanup
     ::SelectObject(h_mem_dc, h_old_bitmap);
@@ -383,11 +364,10 @@ void Application::show_overlay(bool show)
         m_overlay_active = false;
         detach_hooks();
 
-        m_input_char_1 = NULL_CHAR; // Reset input
+        m_input_char_1 = NULL_CHAR;
         m_input_char_2 = NULL_CHAR;
 
-        // test to repaint before showing so that the old bitmap is not shown
-        // There is a better way though
+        // Repaint so that the old bitmap is not shown
         force_repaint(m_hwnd);
         ::ShowWindow(m_hwnd, SW_HIDE);
     }
@@ -426,6 +406,8 @@ void Application::click_at(int x, int y, bool right_click)
     ::SendInput(2, inputs, sizeof(INPUT));
 }
 
+// Used for releasing specifially the alt key so it doesn't get
+// left on hold after overlay is activated
 void Application::release_key(int vk_code)
 {
     INPUT input = {0};
