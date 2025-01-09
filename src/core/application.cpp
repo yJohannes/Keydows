@@ -15,7 +15,6 @@ LONG Application::m_vertical_blocks = 22;
 
 wchar_t Application::m_input_char_1 = NULL_CHAR;
 wchar_t Application::m_input_char_2 = NULL_CHAR;
-bool Application::m_overlay_active = false;
 
 /*
  * Creates the Keydows overlay application that uses a low-level
@@ -45,7 +44,6 @@ Application::Application(HINSTANCE h_instance)
         wcex.lpszClassName  = class_name;
         ::RegisterClassExW(&wcex);
 
-        // Create window handler
         m_hwnd = ::CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
             class_name,
@@ -108,23 +106,24 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
     }
 }
 
-// Posts keyboard event messages
+// Posts keyboard event messages for wnd_proc to process
 LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
     // w_param contains event type
     // l_param contains event data
-
-    if (m_overlay_active && n_code >= 0)
+    if (n_code >= 0)
     {
         KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
 
-        WPARAM vk_code = p_keydata->vkCode;         // New w_param
-        LPARAM out_key_data = (LPARAM)p_keydata;    // New l_param
+        WPARAM vk_code = p_keydata->vkCode;
+        LPARAM out_key_data = (LPARAM)p_keydata;
 
-        // Allow certain mod keys to pass
-        if ((vk_code == VK_SHIFT) || (vk_code == VK_LSHIFT) || (vk_code == VK_RSHIFT) ||
-            (vk_code == VK_LWIN) || (vk_code == VK_RWIN))
+        // Allow certain mod keys to pass, shift for right click
+        if (vk_code == VK_SHIFT || vk_code == VK_LSHIFT || vk_code == VK_RSHIFT ||
+            vk_code == VK_LWIN || vk_code == VK_RWIN)
+        {
             return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
+        }
 
         std::cout << "Key caught:\t" << vk_code << " char: " << (char)vk_code << "\n";
 
@@ -167,11 +166,17 @@ void Application::attach_hooks()
 {
     m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
     if (!m_keyboard_hook)
+    {
         std::cerr << "Failed to install keyboard hook!" << std::endl;
+        ::MessageBox(NULL, L"Failed to install keyboard hook!", L"Error", MB_ICONERROR | MB_OK);
+    }
 
     m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
     if (!m_mouse_hook)
+    {
         std::cerr << "Failed to install mouse hook!" << std::endl;
+        ::MessageBox(NULL, L"Failed to install mouse hook!", L"Error", MB_ICONERROR | MB_OK);
+    }
 }
 
 void Application::detach_hooks()
@@ -182,7 +187,7 @@ void Application::detach_hooks()
 #pragma endregion
 
 #pragma region Window handlers
-void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may contain press count !!
+void Application::handle_keydown(WPARAM w_param, LPARAM l_param)
 {
     std::cout << "VK pressed:\t" << w_param << "\n";
 
@@ -196,13 +201,10 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         return;
 
     case VK_BACK:  // Remove a typed key
-        if (m_overlay_active)
-        {
-            if (m_input_char_2)
-                m_input_char_2 = NULL_CHAR;
-            else if (m_input_char_1)
-                m_input_char_1 = NULL_CHAR;
-        }
+        if (m_input_char_2)
+            m_input_char_2 = NULL_CHAR;
+        else if (m_input_char_1)
+            m_input_char_1 = NULL_CHAR;
         force_repaint(m_hwnd);
         return;
 
@@ -212,9 +214,6 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         force_repaint(m_hwnd);
         return;
     }
-
-    if (!m_overlay_active) // Redundant checks after unhooking?
-        return;
 
     wchar_t key_char = towupper(get_key_char(w_param, l_param));
     std::cout << "-> VK char:\t" << (char)key_char << "\n";
@@ -229,14 +228,14 @@ void Application::handle_keydown(WPARAM w_param, LPARAM l_param) // l_param may 
         int max_horizontal_index = m_display_width / m_block_width;
         int max_vertical_index = m_display_height / m_block_height;
 
-        if (m_input_char_1 == NULL_CHAR && get_char_index(key_char) <= max_horizontal_index)
+        if (m_input_char_1 == NULL_CHAR && get_char_index(key_char) < max_horizontal_index)
         {
             m_input_char_1 = key_char;
             force_repaint(m_hwnd);
             return;
         }
         
-        if (m_input_char_2 == NULL_CHAR && get_char_index(key_char) <= max_vertical_index)
+        if (m_input_char_2 == NULL_CHAR && get_char_index(key_char) < max_vertical_index)
         {
             m_input_char_2 = key_char;
             force_repaint(m_hwnd);
@@ -352,7 +351,6 @@ void Application::show_overlay(bool show)
 {
     if (show)
     {
-        m_overlay_active = true;
         attach_hooks();
 
         // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
@@ -361,7 +359,6 @@ void Application::show_overlay(bool show)
     }
     else
     {
-        m_overlay_active = false;
         detach_hooks();
 
         m_input_char_1 = NULL_CHAR;

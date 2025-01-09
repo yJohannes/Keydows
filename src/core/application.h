@@ -36,10 +36,9 @@ private:
     static LONG m_horizontal_blocks;
     static LONG m_vertical_blocks;
 
-    static bool m_overlay_active;
     static wchar_t m_input_char_1;
     static wchar_t m_input_char_2;
-    static constexpr const wchar_t* m_chars = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
+    static constexpr wchar_t* m_chars = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
 
 public:
     Application(HINSTANCE h_instance);
