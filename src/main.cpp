@@ -1,4 +1,4 @@
-#include <Windows.h>
+#include <windows.h>
 #include "core/application.h"
 
 int APIENTRY WinMain(
