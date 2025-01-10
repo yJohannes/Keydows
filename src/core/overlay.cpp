@@ -28,6 +28,11 @@ void Overlay::set_charset(const wchar_t *charset)
     m_charset = charset;
 }
 
+void Overlay::set_click_direction_charset(const wchar_t *charset)
+{
+    m_click_direction_charset = charset;
+}
+
 void Overlay::render(HWND h_wnd)
 {
     static HPEN h_pen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
@@ -177,7 +182,7 @@ int Overlay::get_char_index(wchar_t c) const
 
 
 // Returns -1 for invalid char id (-1)
-void Overlay::char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out)
+void Overlay::char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out) const
 {
     *x_out = char_id1 * m_block_width + m_block_width / 2;
     *y_out = char_id2 * m_block_height + m_block_height / 2;
@@ -187,7 +192,7 @@ void Overlay::char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, in
 }
 
 // Returns -1 for characters not in char list
-void Overlay::chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_out)
+void Overlay::chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_out) const
 {
     int id1 = get_char_index(c1);
     int id2 = get_char_index(c2);
