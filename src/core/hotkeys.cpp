@@ -1,6 +1,6 @@
 #include "hotkeys.h"
 
-namespace HotKey
+namespace hotkey
 {
     unsigned int registered_key_count = 0; // Define the static variable here
 
@@ -28,4 +28,4 @@ namespace HotKey
         }
         registered_key_count = 0;
     }
-} // namespace HotKey
+} // namespace hotkey

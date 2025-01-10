@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <iostream>
 
-namespace HotKey
+namespace hotkey
 {
     extern unsigned int registered_key_count;
 
