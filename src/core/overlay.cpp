@@ -12,17 +12,7 @@ Overlay::Overlay()
 
 Overlay::~Overlay()
 {
-    if (m_default_mem_bitmap)
-    {
-        ::DeleteObject(m_default_mem_bitmap);
-        m_default_mem_bitmap = nullptr;
-    }
-
-    if (m_default_mem_dc)
-    {
-        ::DeleteDC(m_default_mem_dc);
-        m_default_mem_dc = nullptr;
-    }
+    delete_cached_default_overlay();
 }
 
 void Overlay::set_size(int x, int y)
@@ -52,11 +42,10 @@ void Overlay::set_click_direction_charset(const wchar_t *charset)
 
 void Overlay::render(HWND h_wnd)
 {
-    static bool use_default_overlay;
-    use_default_overlay = (m_input_char_1 == NULL_CHAR);
+    bool use_default_overlay = (m_input_char_1 == NULL_CHAR);
 
     // Get maximized window rect
-    static RECT rect = {0};
+    RECT rect = {0};
     ::GetClientRect(h_wnd, &rect);
 
     PAINTSTRUCT ps = {0};
@@ -64,8 +53,19 @@ void Overlay::render(HWND h_wnd)
     HDC h_mem_dc = ::CreateCompatibleDC(h_dc);
     ::SetBkMode(h_mem_dc, OPAQUE);
 
+    // Check if default overlay is still valid
+    if (m_default_mem_bitmap && m_default_mem_dc)
+    {
+        BITMAP def = {0};
+        ::GetObject(m_default_mem_bitmap, sizeof(BITMAP), &def);
+        if (def.bmWidth != rect.right - rect.left || def.bmHeight != rect.bottom - rect.top)
+        {
+            delete_cached_default_overlay();
+        }
+    }
+
     // Initialize default overlay
-    if (m_default_mem_bitmap == nullptr)
+    if (m_default_mem_bitmap == nullptr || m_default_mem_dc == nullptr)
     {
         m_default_mem_dc = ::CreateCompatibleDC(h_dc);
         m_default_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
@@ -135,9 +135,19 @@ void Overlay::render_overlay_bitmap(HDC h_dc)
     }
 }
 
-void Overlay::make_default_overlay_bitmap(HDC h_dc)
+void Overlay::delete_cached_default_overlay()
 {
+    if (m_default_mem_bitmap)
+    {
+        ::DeleteObject(m_default_mem_bitmap);
+        m_default_mem_bitmap = nullptr;
+    }
 
+    if (m_default_mem_dc)
+    {
+        ::DeleteDC(m_default_mem_dc);
+        m_default_mem_dc = nullptr;
+    }
 }
 
 // Expects capitalized letters 
