@@ -2,10 +2,27 @@
 #include "defines.h"
 
 Overlay::Overlay()
-    : m_input_char_1(NULL_CHAR)
+    : m_input_data({-1, -1, 0})
+    , m_input_char_1(NULL_CHAR)
     , m_input_char_2(NULL_CHAR)
-    , m_input_data({-1, -1, 0})
+    , m_default_mem_dc(nullptr)
+    , m_default_mem_bitmap(nullptr)
 {
+}
+
+Overlay::~Overlay()
+{
+    if (m_default_mem_bitmap)
+    {
+        ::DeleteObject(m_default_mem_bitmap);
+        m_default_mem_bitmap = nullptr;
+    }
+
+    if (m_default_mem_dc)
+    {
+        ::DeleteDC(m_default_mem_dc);
+        m_default_mem_dc = nullptr;
+    }
 }
 
 void Overlay::set_size(int x, int y)
@@ -35,6 +52,49 @@ void Overlay::set_click_direction_charset(const wchar_t *charset)
 
 void Overlay::render(HWND h_wnd)
 {
+    static bool use_default_overlay;
+    use_default_overlay = (m_input_char_1 == NULL_CHAR);
+
+    // Get maximized window rect
+    static RECT rect = {0};
+    ::GetClientRect(h_wnd, &rect);
+
+    PAINTSTRUCT ps = {0};
+    HDC h_dc = ::BeginPaint(h_wnd, &ps);   // Begin painting on overlay
+    HDC h_mem_dc = ::CreateCompatibleDC(h_dc);
+    ::SetBkMode(h_mem_dc, OPAQUE);
+
+    // Initialize default overlay
+    if (m_default_mem_bitmap == nullptr)
+    {
+        m_default_mem_dc = ::CreateCompatibleDC(h_dc);
+        m_default_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
+        ::SelectObject(m_default_mem_dc, m_default_mem_bitmap);
+        render_overlay_bitmap(m_default_mem_dc);
+    }
+
+    if (use_default_overlay)
+    {
+        // Copy pre-rendered bitmap to the screen 
+        ::BitBlt(h_dc, 0, 0, rect.right, rect.bottom, m_default_mem_dc, 0, 0, SRCCOPY);
+    }
+    else
+    {
+        HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
+        HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_mem_dc, h_mem_bitmap);
+        render_overlay_bitmap(h_mem_dc);
+
+        ::BitBlt(h_dc, 0, 0, rect.right, rect.bottom, h_mem_dc, 0, 0, SRCCOPY);
+        ::SelectObject(h_mem_dc, h_old_bitmap);
+        ::DeleteObject(h_mem_bitmap);
+    }
+
+    ::DeleteDC(h_mem_dc);
+    ::EndPaint(h_wnd, &ps);
+}
+
+void Overlay::render_overlay_bitmap(HDC h_dc)
+{
     static HPEN h_pen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
     static HFONT h_font = ::CreateFont(
         20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
@@ -42,20 +102,8 @@ void Overlay::render(HWND h_wnd)
         DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
     );
 
-    // Get maximized window rect
-    static RECT rect = {0};
-    ::GetClientRect(h_wnd, &rect);
-
-    PAINTSTRUCT ps = {0};
-    HDC h_dc = ::BeginPaint(h_wnd, &ps);
-
-    HDC h_mem_dc = ::CreateCompatibleDC(h_dc);
-    HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
-    HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_mem_dc, h_mem_bitmap);
-    ::SetBkMode(h_mem_dc, OPAQUE);
-
-    ::SelectObject(h_mem_dc, h_pen);
-    ::SelectObject(h_mem_dc, h_font);
+    ::SelectObject(h_dc, h_pen);
+    ::SelectObject(h_dc, h_font);
 
     int sel_x, sel_y;
     chars_to_coordinates(m_input_char_1, m_input_char_2, &sel_x, &sel_y);
@@ -66,13 +114,13 @@ void Overlay::render(HWND h_wnd)
             // Highlight selected row & col
             if (x == sel_x - m_block_width / 2 || y == sel_y - m_block_height / 2)
             {
-                ::SetBkColor(h_mem_dc, RGB(255, 255, 255));
-                ::SetTextColor(h_mem_dc, RGB(1, 1, 1));
+                ::SetBkColor(h_dc, RGB(255, 255, 255));
+                ::SetTextColor(h_dc, RGB(1, 1, 1));
             }
             else
             {
-                ::SetBkColor(h_mem_dc, RGB(1, 1, 1));          // True black rgb
-                ::SetTextColor(h_mem_dc, RGB(255, 255, 255));
+                ::SetBkColor(h_dc, RGB(1, 1, 1));   // True black rgb
+                ::SetTextColor(h_dc, RGB(255, 255, 255));
             }
 
             wchar_t cell_chars[3] = {
@@ -82,18 +130,14 @@ void Overlay::render(HWND h_wnd)
             };
             
             RECT text_rect = { x, y, x + m_block_width, y + m_block_height };
-            ::DrawTextW(h_mem_dc, cell_chars, -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            ::DrawTextW(h_dc, cell_chars, -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
     }
+}
 
-    // Copy the memory bitmap to the screen
-    ::BitBlt(h_dc, 0, 0, rect.right, rect.bottom, h_mem_dc, 0, 0, SRCCOPY);
+void Overlay::make_default_overlay_bitmap(HDC h_dc)
+{
 
-    // Cleanup
-    ::SelectObject(h_mem_dc, h_old_bitmap);
-    ::DeleteObject(h_mem_bitmap);
-    ::DeleteObject(h_mem_dc);
-    ::EndPaint(h_wnd, &ps);
 }
 
 // Expects capitalized letters 
