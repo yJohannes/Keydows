@@ -17,12 +17,14 @@
 
 /*
 TODO:
-- Key that removes all input characters 
+- Adjustable alpha for text
 - Don't do all repaint rendering on show, use old DC 
+- GUI for custom bindings
 */
 class Application
 {
 private:
+    static WNDCLASSEXW m_wcex;
     static HWND m_hwnd;
     static HHOOK m_keyboard_hook;
     static HHOOK m_mouse_hook;
