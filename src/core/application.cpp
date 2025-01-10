@@ -203,13 +203,24 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
 
     std::cout << "-> VK char:\t" << (char)key << "\n";
 
-    int result = m_overlay.enter_input(key);
-    // Force repaint after to apply/remove highlights
+    // COULD TURN THIS INTO A VALIDATOR FOR ALSO THE GUI
+    // Map input virtual key to actual key (fails for certain keys for some reason) 
+    wchar_t uni_key = key;  // Fail-safe
+    {
+        BYTE kb_state[256];
+        ::GetKeyboardState(kb_state);
+
+        UINT scan_code = (details >> 16) & 0xFF;
+        ::ToUnicode(key, scan_code, kb_state, &uni_key, 1, 0);
+        uni_key = towupper(uni_key);  // Uppercase letters, also could use lowercase to detect shift. Just a thought
+    }
+
+    int result = m_overlay.enter_input(uni_key);
     switch (result)
     {
     case Overlay::FIRST_INPUT:
     case Overlay::SECOND_INPUT:
-        force_repaint();
+        force_repaint();    // Force repaint to update highlights
         break;
     case Overlay::TRIGGERED:
         int x = m_overlay.input_data()->x;
