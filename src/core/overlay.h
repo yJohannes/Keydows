@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <string>
+#include <iostream>
 
 class Overlay
 {
@@ -67,5 +68,5 @@ public:
     { return (get_char_index(c) != -1); }
 private:
     void render_overlay_bitmap(HDC h_dc);
-    void make_default_overlay_bitmap(HDC h_dc);
+    void delete_cached_default_overlay();
 };
