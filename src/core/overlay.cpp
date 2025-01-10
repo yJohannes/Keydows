@@ -1,0 +1,196 @@
+#include "overlay.h"
+#include "defines.h"
+
+Overlay::Overlay()
+    : m_input_char_1(NULL_CHAR)
+    , m_input_char_2(NULL_CHAR)
+    , m_input_data({-1, -1, 0})
+{
+}
+
+void Overlay::set_size(int x, int y)
+{
+    m_size.cx = x;
+    m_size.cy = y;
+}
+
+void Overlay::set_resolution(int x, int y)
+{
+    m_resolution.cx = x;
+    m_resolution.cy = y;
+
+    m_block_width = m_size.cx / x;
+    m_block_height = m_size.cy / y;
+}
+
+void Overlay::set_charset(const wchar_t *charset)
+{
+    m_charset = charset;
+}
+
+void Overlay::render(HWND h_wnd)
+{
+    static HPEN h_pen = ::CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
+    static HFONT h_font = ::CreateFont(
+        20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial"
+    );
+
+    // Get maximized window rect
+    static RECT rect = {0};
+    ::GetClientRect(h_wnd, &rect);
+
+    PAINTSTRUCT ps = {0};
+    HDC h_dc = ::BeginPaint(h_wnd, &ps);
+
+    HDC h_mem_dc = ::CreateCompatibleDC(h_dc);
+    HBITMAP h_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
+    HBITMAP h_old_bitmap = (HBITMAP)::SelectObject(h_mem_dc, h_mem_bitmap);
+    ::SetBkMode(h_mem_dc, OPAQUE);
+
+    ::SelectObject(h_mem_dc, h_pen);
+    ::SelectObject(h_mem_dc, h_font);
+
+    int sel_x, sel_y;
+    chars_to_coordinates(m_input_char_1, m_input_char_2, &sel_x, &sel_y);
+
+    for (int x = 0; x < m_size.cx; x += m_block_width) {
+        for (int y = 0; y < m_size.cy; y += m_block_height)
+        {
+            // Highlight selected row & col
+            if (x == sel_x - m_block_width / 2 || y == sel_y - m_block_height / 2)
+            {
+                ::SetBkColor(h_mem_dc, RGB(255, 255, 255));
+                ::SetTextColor(h_mem_dc, RGB(1, 1, 1));
+            }
+            else
+            {
+                ::SetBkColor(h_mem_dc, RGB(1, 1, 1));          // True black rgb
+                ::SetTextColor(h_mem_dc, RGB(255, 255, 255));
+            }
+
+            wchar_t cell_chars[3] = {
+                m_charset[x / m_block_width % m_charset.size()],
+                m_charset[y / m_block_height % m_charset.size()],
+                L'\0'
+            };
+            
+            RECT text_rect = { x, y, x + m_block_width, y + m_block_height };
+            ::DrawTextW(h_mem_dc, cell_chars, -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+    }
+
+    // Copy the memory bitmap to the screen
+    ::BitBlt(h_dc, 0, 0, rect.right, rect.bottom, h_mem_dc, 0, 0, SRCCOPY);
+
+    // Cleanup
+    ::SelectObject(h_mem_dc, h_old_bitmap);
+    ::DeleteObject(h_mem_bitmap);
+    ::DeleteObject(h_mem_dc);
+    ::EndPaint(h_wnd, &ps);
+}
+
+// Expects capitalized letters 
+int Overlay::enter_input(wchar_t in_char)
+{
+    // Accept only valid chars for input
+    if (is_valid_char(in_char))
+    {
+        int max_horizontal_index = m_size.cx / m_block_width;
+        int max_vertical_index = m_size.cy / m_block_height;
+
+        if (m_input_char_1 == NULL_CHAR && get_char_index(in_char) < max_horizontal_index)
+        {
+            m_input_char_1 = in_char;
+            return FIRST_INPUT;
+        }
+        
+        if (m_input_char_2 == NULL_CHAR && get_char_index(in_char) < max_vertical_index)
+        {
+            m_input_char_2 = in_char;
+            return SECOND_INPUT;
+        }
+    }
+
+    // Any third key will trigger (maybe change to a separate function?)
+    if (m_input_char_1 && m_input_char_2)
+    {
+        int id1 = get_char_index(m_input_char_1);
+        int id2 = get_char_index(m_input_char_2);
+
+        int x, y;
+        char_ids_to_coordinates(id1, id2, &x, &y);
+
+        auto& d = m_click_direction_charset;
+
+        x -= m_block_width / 2 * (in_char == d[2] || in_char == d[4] || in_char == d[6]);
+        x += m_block_width / 2 * (in_char == d[3] || in_char == d[5] || in_char == d[7]);
+
+        y -= m_block_height / 2 * (in_char == d[0] || in_char == d[4] || in_char == d[5]);
+        y += m_block_height / 2 * (in_char == d[1] || in_char == d[6] || in_char == d[7]);
+
+        // Reset pressed chars (will be changed with multi-click being added)
+        clear_input();
+
+        m_input_data.x = x;
+        m_input_data.y = y;
+        return TRIGGERED;
+    }
+
+    return NO_INPUT;
+}
+
+int Overlay::undo_input()
+{
+    if (m_input_char_2)
+    {
+        m_input_char_2 = NULL_CHAR;
+        return FIRST_INPUT;
+    }
+    else if (m_input_char_1)
+    {
+        m_input_char_1 = NULL_CHAR;
+        return NO_INPUT;
+    }
+
+    return NO_INPUT;
+}
+
+void Overlay::clear_input()
+{
+    m_input_char_1 = NULL_CHAR;
+    m_input_char_2 = NULL_CHAR;
+}
+
+#pragma region Helpers
+
+// Returns -1 for characters not in char list
+int Overlay::get_char_index(wchar_t c) const
+{
+    for (int i = 0; i < m_charset.size(); ++i)
+    {
+        if (m_charset[i] == c) return i;
+    }
+    return -1; // Not found
+}
+
+
+// Returns -1 for invalid char id (-1)
+void Overlay::char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out)
+{
+    *x_out = char_id1 * m_block_width + m_block_width / 2;
+    *y_out = char_id2 * m_block_height + m_block_height / 2;
+
+    if (char_id1 == -1) *x_out = -1;
+    if (char_id2 == -1) *y_out = -1;
+}
+
+// Returns -1 for characters not in char list
+void Overlay::chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_out)
+{
+    int id1 = get_char_index(c1);
+    int id2 = get_char_index(c2);
+    char_ids_to_coordinates(id1, id2, x_out, y_out);
+}
+#pragma endregion
