@@ -1,7 +1,8 @@
 #include "defines.h"
 #include "application.h"
 
-HWND  Application::m_hwnd = nullptr;
+WNDCLASSEXW  Application::m_wcex;
+HWND Application::m_hwnd = nullptr;
 HHOOK Application::m_keyboard_hook = nullptr;
 HHOOK Application::m_mouse_hook = nullptr;
 Overlay Application::m_overlay;
@@ -20,35 +21,33 @@ Application::Application(HINSTANCE h_instance)
 #endif
 
     // Window creation
-    {
-        const wchar_t class_name[] = L"Keydows";
-        WNDCLASSEXW wcex = {0};
-        wcex.cbSize = sizeof(wcex);
-        wcex.style          = CS_HREDRAW | CS_VREDRAW;
-        wcex.lpfnWndProc    = wnd_proc;
-        wcex.hInstance      = h_instance;
-        wcex.hCursor        = ::LoadCursorW(NULL, IDC_ARROW);
-        wcex.hbrBackground  = (HBRUSH)::GetStockObject(BLACK_BRUSH);
-        wcex.lpszClassName  = class_name;
-        ::RegisterClassExW(&wcex);
+    const wchar_t class_name[] = L"Keydows";
+    WNDCLASSEXW m_wcex = {0};
+    m_wcex.cbSize = sizeof(m_wcex);
+    m_wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    m_wcex.lpfnWndProc    = wnd_proc;
+    m_wcex.hInstance      = h_instance;
+    m_wcex.hCursor        = ::LoadCursorW(NULL, IDC_ARROW);
+    m_wcex.hbrBackground  = (HBRUSH)::GetStockObject(BLACK_BRUSH);
+    m_wcex.lpszClassName  = class_name;
+    ::RegisterClassExW(&m_wcex);
 
-        m_hwnd = ::CreateWindowExW(
-            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
-            class_name,
-            L"Keydows Overlay Window",
-            WS_POPUP | WS_VISIBLE,
-            0, 0,
-            ::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN),
-            NULL, NULL,
-            h_instance,
-            this
-        ); // ::UnregisterClassW(class_name, h_instance);
-    }
+    m_hwnd = ::CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
+        class_name,
+        L"Keydows Overlay Window",
+        WS_POPUP | WS_VISIBLE,
+        0, 0,
+        ::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN),
+        NULL, NULL,
+        h_instance,
+        this
+    );
 
+    // This does nothing at the moment for text
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
     hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
     hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
-
 
     m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
     m_overlay.set_resolution(28, 22);
@@ -58,6 +57,7 @@ Application::Application(HINSTANCE h_instance)
 
 Application::~Application()
 {
+    ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);
 }
 
 int Application::run()
@@ -115,8 +115,6 @@ LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l
             return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
         }
 
-        std::cout << "Key caught:\t" << vk_code << " char: " << (char)vk_code << "\n";
-
         switch (w_param) {
         case WM_KEYDOWN:
         case WM_KEYUP:
@@ -151,6 +149,7 @@ void Application::destroy_proc()
     hotkey::unregister_hotkeys(m_hwnd);
     ::PostQuitMessage(0);
 }
+
 
 void Application::attach_hooks()
 {
