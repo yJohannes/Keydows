@@ -1,0 +1,12 @@
+{
+    "resolution": [32, 26],
+    "charset": "ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-",
+    "click_direction_charset": "WSADQEOP",
+    
+    "hotkeys": {
+        "overlay": {
+            "mod": 2,
+            "key": 190
+        }
+    }
+}

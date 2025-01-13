@@ -8,8 +8,11 @@
 #include <shellscalingapi.h>
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <cwchar>
+
+#include "json.hpp"
 
 #include "defines.h"
 #include "overlay.h"
@@ -18,11 +21,18 @@
 /*
 TODO:
 - Adjustable alpha for text
-- Don't do all repaint rendering on show, use old DC 
 - GUI for custom bindings
 - If hotkey mod key is down and hook recives the key, let it pass to close overlay  
-- Make holding space hold click and arrows move cursor
+- Make holding input key hold click and arrows move cursor
 */
+
+using json = nlohmann::json;
+
+/*
+ * The Keydows overlay application. Uses low-level
+ * mouse and keyboard hooks to catch keystrokes. The overlay never
+ * obtains focus and therefore only relies on said hooks.
+ */
 class Application
 {
 private:
@@ -38,6 +48,7 @@ public:
     int run();
 
 private:
+    static void load_config();
     static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);

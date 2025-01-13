@@ -7,11 +7,6 @@ HHOOK Application::m_keyboard_hook = nullptr;
 HHOOK Application::m_mouse_hook = nullptr;
 Overlay Application::m_overlay;
 
-/*
- * Creates the Keydows overlay application that uses a low-level
- * mouse and keyboard hook to catch keystrokes. The overlay never
- * obtains focus and therefore only relies on said hooks.
- */
 Application::Application(HINSTANCE h_instance)
 {
 #if NTDDI_VERSION >= NTDDI_WINBLUE
@@ -46,13 +41,8 @@ Application::Application(HINSTANCE h_instance)
 
     // This does nothing at the moment for text
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
-    hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-    // hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
-    hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
 
-    m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
-    m_overlay.set_resolution(24, 19);
-
+    load_config();
     show_overlay(false);
 }
 
@@ -71,6 +61,50 @@ int Application::run()
     }
 
     return (int)msg.wParam;
+}
+
+void Application::load_config()
+{
+
+    std::ifstream config_file("C:\\dev\\Project-Keydows\\config.json");
+    
+    if (!config_file.is_open())
+    {
+        hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+        hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
+        m_overlay.set_resolution(24, 19);
+        std::cerr << "Failed to open config.json" << std::endl;
+        return;
+    }
+
+    json json;
+    config_file >> json;
+
+    // Overlay
+    {
+        auto resolution = json.at("resolution");
+        int x = resolution.at(0);
+        int y = resolution.at(1);
+
+        m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
+        m_overlay.set_resolution(x, y);
+        
+        std::string charset = json.at("charset");
+        std::string dir_charset = json.at("click_direction_charset");
+        
+        m_overlay.set_charset(std::wstring(charset.begin(), charset.end()).c_str());
+        m_overlay.set_click_direction_charset(std::wstring(dir_charset.begin(), dir_charset.end()).c_str());
+    }
+
+    // Hotkeys
+    {
+        auto hks = json.at("hotkeys");
+        auto hk_overlay = hks.at("overlay");
+        hotkey::register_key(m_hwnd, hotkey::OVERLAY, hk_overlay.at("mod"), hk_overlay.at("key"));
+        hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+    }
+    
+
 }
 
 #pragma region Proc, hook
@@ -209,11 +243,15 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
     {
         BYTE kb_state[256];
         ::GetKeyboardState(kb_state);
+        kb_state[VK_SHIFT] = 0;   // Remove shift
 
         UINT scan_code = (details >> 16) & 0xFF;
+
         ::ToUnicode(key, scan_code, kb_state, &uni_key, 1, 0);
-        uni_key = towupper(uni_key);  // Uppercase letters, also could use lowercase to detect shift. Just a thought
+        uni_key = towupper(uni_key);
     }
+
+    std::cout << (char)uni_key << "\n";
 
     int result = m_overlay.enter_input(uni_key);
     switch (result)
@@ -281,9 +319,8 @@ void Application::paint_event()
 
 void Application::force_repaint()
 {
-    // Force a repaint of the window by invalidating its client area
     ::InvalidateRect(m_hwnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
-    ::UpdateWindow(m_hwnd);                 // Force the window to repaint immediately
+    ::UpdateWindow(m_hwnd);                 // Post WM_PAINT event
 }
 
 void Application::click_at(int x, int y, bool right_click)
