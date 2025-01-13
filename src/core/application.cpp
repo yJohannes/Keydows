@@ -47,10 +47,11 @@ Application::Application(HINSTANCE h_instance)
     // This does nothing at the moment for text
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
     hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-    hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
+    // hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
+    hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
 
     m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
-    m_overlay.set_resolution(28, 22);
+    m_overlay.set_resolution(24, 19);
 
     show_overlay(false);
 }
@@ -203,7 +204,7 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
     std::cout << "-> VK char:\t" << (char)key << "\n";
 
     // COULD TURN THIS INTO A VALIDATOR FOR ALSO THE GUI
-    // Map input virtual key to actual key (fails for certain keys for some reason) 
+    // Map input virtual key to actual key (fails for certain keys like öäå for some reason)
     wchar_t uni_key = key;  // Fail-safe
     {
         BYTE kb_state[256];
@@ -221,13 +222,18 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
     case Overlay::SECOND_INPUT:
         force_repaint();    // Force repaint to update highlights
         break;
-    case Overlay::TRIGGERED:
+    case Overlay::CLICKED:
         int x = m_overlay.input_data()->x;
         int y = m_overlay.input_data()->y;
         click_at(x, y, is_key_down(VK_SHIFT));
         show_overlay(false);
         force_repaint();
         break;
+
+    // case Overlay::REPEATED_CLICK_KEY:
+    //     int x = m_overlay.input_data()->x;
+    //     int y = m_overlay.input_data()->y;
+    //     click_at(x, y, is_key_down(VK_SHIFT));
     }
 }
 
@@ -235,10 +241,13 @@ void Application::handle_hotkey(WPARAM w_param)
 {
     switch (w_param) {
     case hotkey::CLOSE:
-        ::DestroyWindow(m_hwnd); // Send WM_DESTROY message
+        ::DestroyWindow(m_hwnd);   // Send WM_DESTROY message
         break;
+
     case hotkey::OVERLAY:
-        release_key(VK_MENU);
+        // Prevent control from getting stuck. For whatever reason
+        // right mod keys won't release. Make dynamic later.
+        release_key(VK_LCONTROL);
         show_overlay(!::IsWindowVisible(m_hwnd));
         break;
     }

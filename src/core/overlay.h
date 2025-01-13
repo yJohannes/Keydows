@@ -11,18 +11,16 @@ public:
         NO_INPUT,
         FIRST_INPUT,
         SECOND_INPUT,
-        TRIGGERED,
-        TRIGGERED_X2,
-        TRIGGERED_X3
+        CLICKED,
+        REPEATED_CLICK_KEY
     };
 
 private:
     struct InputData
     {
-        // int input state?
         int x;
         int y;
-        int count;
+        wchar_t click_key;
     };
     InputData m_input_data;
 
@@ -31,9 +29,10 @@ private:
 
     int m_block_width;
     int m_block_height;
-
+    
     wchar_t m_input_char_1;
     wchar_t m_input_char_2;
+    wchar_t m_repeat_char;
     std::wstring m_charset = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
     std::wstring m_click_direction_charset = L"WSADQEOP"; // U, D, L, R, TL, TR, BL, BR
 
@@ -61,7 +60,7 @@ public:
     void char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out) const;
     void chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_out) const;
 
-    bool is_valid_coordinate(LONG x, LONG y) const
+    bool is_valid_coordinate(int x, int y) const
     { return x >= 0 && x < m_size.cx && y >= 0 && y < m_size.cy; }
 
     bool is_valid_char(wchar_t c) const

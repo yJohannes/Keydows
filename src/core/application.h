@@ -20,6 +20,8 @@ TODO:
 - Adjustable alpha for text
 - Don't do all repaint rendering on show, use old DC 
 - GUI for custom bindings
+- If hotkey mod key is down and hook recives the key, let it pass to close overlay  
+- Make holding space hold click and arrows move cursor
 */
 class Application
 {

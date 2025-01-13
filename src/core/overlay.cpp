@@ -2,9 +2,10 @@
 #include "defines.h"
 
 Overlay::Overlay()
-    : m_input_data({-1, -1, 0})
+    : m_input_data({-1, -1})
     , m_input_char_1(NULL_CHAR)
     , m_input_char_2(NULL_CHAR)
+    , m_repeat_char(NULL_CHAR)
     , m_default_mem_dc(nullptr)
     , m_default_mem_bitmap(nullptr)
 {
@@ -54,7 +55,7 @@ void Overlay::render(HWND h_wnd)
     ::SetBkMode(h_mem_dc, OPAQUE);
 
     // Check if default overlay is still valid
-    if (m_default_mem_bitmap && m_default_mem_dc)
+    if (m_default_mem_dc)
     {
         BITMAP def = {0};
         ::GetObject(m_default_mem_bitmap, sizeof(BITMAP), &def);
@@ -65,7 +66,7 @@ void Overlay::render(HWND h_wnd)
     }
 
     // Initialize default overlay
-    if (m_default_mem_bitmap == nullptr || m_default_mem_dc == nullptr)
+    if (m_default_mem_dc == nullptr)
     {
         m_default_mem_dc = ::CreateCompatibleDC(h_dc);
         m_default_mem_bitmap = ::CreateCompatibleBitmap(h_dc, rect.right, rect.bottom);
@@ -153,6 +154,15 @@ void Overlay::delete_cached_default_overlay()
 // Expects capitalized letters 
 int Overlay::enter_input(wchar_t in_char)
 {
+    if (m_repeat_char)
+    {
+        if (in_char == m_repeat_char)
+            return CLICKED;
+        else
+            m_repeat_char = NULL_CHAR;
+            clear_input();
+    }
+
     // Accept only valid chars for input
     if (is_valid_char(in_char))
     {
@@ -172,11 +182,18 @@ int Overlay::enter_input(wchar_t in_char)
         }
     }
 
+    if (m_input_char_1 && m_input_char_2 && in_char == VK_SPACE) // Should make VK codes to unicode as well?
+    {
+
+    }
+
+
     // Any third key will trigger (maybe change to a separate function?)
     if (m_input_char_1 && m_input_char_2)
     {
         int id1 = get_char_index(m_input_char_1);
         int id2 = get_char_index(m_input_char_2);
+
 
         int x, y;
         char_ids_to_coordinates(id1, id2, &x, &y);
@@ -189,12 +206,13 @@ int Overlay::enter_input(wchar_t in_char)
         y -= m_block_height / 2 * (in_char == d[0] || in_char == d[4] || in_char == d[5]);
         y += m_block_height / 2 * (in_char == d[1] || in_char == d[6] || in_char == d[7]);
 
-        // Reset pressed chars (will be changed with multi-click being added)
-        clear_input();
+        // Used to reset pressed chars here before multi-click
+        m_repeat_char = in_char;
 
         m_input_data.x = x;
         m_input_data.y = y;
-        return TRIGGERED;
+        m_input_data.click_key = in_char;
+        return CLICKED;
     }
 
     return NO_INPUT;
