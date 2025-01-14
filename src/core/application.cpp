@@ -43,7 +43,7 @@ Application::Application(HINSTANCE h_instance)
     ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
 
     load_config();
-    show_overlay(false);
+    m_overlay.activate(false);
 }
 
 Application::~Application()
@@ -66,7 +66,7 @@ int Application::run()
 void Application::load_config()
 {
 
-    std::ifstream config_file("config.json");
+    std::ifstream config_file("../config.json");
     
     if (!config_file.is_open())
     {
@@ -150,7 +150,7 @@ LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_pa
     {
         if ((w_param == WM_LBUTTONDOWN) || (w_param == WM_RBUTTONDOWN))
         {
-            show_overlay(false);
+            m_overlay.activate(false);
         }
     }
 
@@ -199,20 +199,6 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
     case VK_F4:
         ::DestroyWindow(h_wnd);
         return;
-
-    case VK_ESCAPE:
-        show_overlay(false);
-        return;
-
-    case VK_BACK:  // Remove a typed key
-        m_overlay.undo_input();
-        force_repaint();
-        return;
-
-    case VK_RETURN:
-        m_overlay.clear_input();
-        force_repaint();
-        return;
     }
 
     std::cout << "-> VK char:\t" << (char)key << "\n";
@@ -237,20 +223,15 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
     {
     case Overlay::FIRST_INPUT:
     case Overlay::SECOND_INPUT:
-        force_repaint();    // Force repaint to update highlights
+        repaint();    // Force repaint to update highlights
         break;
     case Overlay::CLICKED:
         int x = m_overlay.input_data()->x;
         int y = m_overlay.input_data()->y;
         click_at(x, y, is_key_down(VK_SHIFT));
-        show_overlay(false);
-        force_repaint();
+        m_overlay.activate(false);
+        repaint();
         break;
-
-    // case Overlay::REPEATED_CLICK_KEY:
-    //     int x = m_overlay.input_data()->x;
-    //     int y = m_overlay.input_data()->y;
-    //     click_at(x, y, is_key_down(VK_SHIFT));
     }
 }
 
@@ -265,28 +246,25 @@ void Application::handle_hotkey(WPARAM w_param)
         // Prevent control from getting stuck. For whatever reason
         // right mod keys won't release. Make dynamic later.
         release_key(VK_LCONTROL);
-        show_overlay(!::IsWindowVisible(h_wnd));
+        m_overlay.activate(!::IsWindowVisible(h_wnd));
+        // show_window(!::IsWindowVisible(h_wnd));
+
         break;
     }
 }
 
-void Application::show_overlay(bool show)
+void Application::show_window(bool show)
 {
     if (show)
     {
-        attach_hooks();
-
         // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
         ::ShowWindow(h_wnd, SW_SHOWNOACTIVATE);
         ::SetWindowPos(h_wnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
     else
     {
-        detach_hooks();
-        m_overlay.clear_input();
-
         // Repaint so that the old bitmap is not shown
-        force_repaint();
+        repaint();
         ::ShowWindow(h_wnd, SW_HIDE);
     }
 }
@@ -296,7 +274,7 @@ void Application::paint_event()
     m_overlay.render(h_wnd);
 }
 
-void Application::force_repaint()
+void Application::repaint()
 {
     ::InvalidateRect(h_wnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
     ::UpdateWindow(h_wnd);                 // Post WM_PAINT event

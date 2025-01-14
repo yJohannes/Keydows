@@ -34,7 +34,6 @@ private:
     
     wchar_t m_input_char_1;
     wchar_t m_input_char_2;
-    wchar_t m_repeat_char;
     std::wstring m_charset = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
     std::wstring m_click_direction_charset = L"WSADQEOP"; // U, D, L, R, TL, TR, BL, BR
 
@@ -45,6 +44,7 @@ public:
     Overlay();
     ~Overlay();
     bool keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param);
+    void activate(bool on);
     void render(HWND h_wnd);
     int enter_input(wchar_t input_char);
     int undo_input();
@@ -68,6 +68,7 @@ public:
 
     bool is_valid_char(wchar_t c) const
     { return (get_char_index(c) != -1); }
+
 private:
     void render_overlay_bitmap(HDC h_dc);
     void delete_cached_default_overlay();

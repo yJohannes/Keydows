@@ -6,7 +6,6 @@ Overlay::Overlay()
     : m_input_data({-1, -1})
     , m_input_char_1(NULL_CHAR)
     , m_input_char_2(NULL_CHAR)
-    , m_repeat_char(NULL_CHAR)
     , m_default_mem_dc(nullptr)
     , m_default_mem_bitmap(nullptr)
 {
@@ -42,7 +41,7 @@ void Overlay::set_click_direction_charset(const wchar_t *charset)
     m_click_direction_charset = charset;
 }
 
-// Returns bool whether to block the event or no
+// Returns bool whether to block the key input for further receivers
 bool Overlay::keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param)
 {
     // w_param contains event type
@@ -52,10 +51,27 @@ bool Overlay::keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param)
         KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
         WPARAM vk_code = p_keydata->vkCode;
 
+        switch (vk_code) {
+        case VK_ESCAPE:
+            activate(false);
+            return true;
+
+        case VK_BACK:  // Remove an input
+            undo_input();
+            Application::repaint();
+            return true;
+
+        case VK_RETURN: // Clear inputs
+            clear_input();
+            Application::repaint();
+            return true;
+
         // Allow certain mod keys to pass, shift for right click
-        if (vk_code == VK_SHIFT || vk_code == VK_LSHIFT || vk_code == VK_RSHIFT ||
-            vk_code == VK_LWIN || vk_code == VK_RWIN)
-        {
+        case VK_SHIFT:
+        case VK_LSHIFT:
+        case VK_RSHIFT:
+        case VK_LWIN:
+        case VK_RWIN:
             return false;
         }
 
@@ -68,8 +84,24 @@ bool Overlay::keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param)
             return true;  // Block the key input for further receivers
         }
     }
-    std::cout << "KOODIITKU\n";
+    
     return false;
+}
+
+void Overlay::activate(bool on)
+{
+    if (on)
+    {
+        Application::attach_hooks();
+        Application::show_window(true);
+    }
+    else
+    {
+        clear_input();
+        Application::detach_hooks();
+        Application::show_window(false);
+
+    }
 }
 
 void Overlay::render(HWND h_wnd)
@@ -185,14 +217,6 @@ void Overlay::delete_cached_default_overlay()
 // Expects capitalized letters 
 int Overlay::enter_input(wchar_t in_char)
 {
-    if (m_repeat_char)
-    {
-        if (in_char == m_repeat_char)
-            return CLICKED;
-        else
-            m_repeat_char = NULL_CHAR;
-            clear_input();
-    }
 
     // Accept only valid chars for input
     if (is_valid_char(in_char))
@@ -237,8 +261,8 @@ int Overlay::enter_input(wchar_t in_char)
         y -= m_block_height / 2 * (in_char == d[0] || in_char == d[4] || in_char == d[5]);
         y += m_block_height / 2 * (in_char == d[1] || in_char == d[6] || in_char == d[7]);
 
-        // Used to reset pressed chars here before multi-click
-        m_repeat_char = in_char;
+        // Reset pressed chars (will change with multi-click)
+        clear_input();
 
         m_input_data.x = x;
         m_input_data.y = y;

@@ -49,6 +49,8 @@ public:
     
     static void attach_hooks();
     static void detach_hooks();
+    static void repaint();
+    static void show_window(bool show);
     static void click_at(int x, int y, bool right_click);
     static void release_key(int vk_code);
     static bool is_key_down(int vk_code);
@@ -62,7 +64,5 @@ private:
 
     static void handle_keydown(WPARAM key, LPARAM details);
     static void handle_hotkey(WPARAM w_param);
-    static void show_overlay(bool show);
     static void paint_event();
-    static void force_repaint();
 };
