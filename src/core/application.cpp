@@ -2,7 +2,7 @@
 #include "application.h"
 
 WNDCLASSEXW  Application::m_wcex;
-HWND Application::m_hwnd = nullptr;
+HWND Application::h_wnd = nullptr;
 HHOOK Application::m_keyboard_hook = nullptr;
 HHOOK Application::m_mouse_hook = nullptr;
 Overlay Application::m_overlay;
@@ -27,7 +27,7 @@ Application::Application(HINSTANCE h_instance)
     m_wcex.lpszClassName  = class_name;
     ::RegisterClassExW(&m_wcex);
 
-    m_hwnd = ::CreateWindowExW(
+    h_wnd = ::CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
         class_name,
         L"Keydows Overlay Window",
@@ -40,7 +40,7 @@ Application::Application(HINSTANCE h_instance)
     );
 
     // This does nothing at the moment for text
-    ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
+    ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
 
     load_config();
     show_overlay(false);
@@ -66,14 +66,14 @@ int Application::run()
 void Application::load_config()
 {
 
-    std::ifstream config_file("C:\\dev\\Project-Keydows\\config.json");
+    std::ifstream config_file("config.json");
     
     if (!config_file.is_open())
     {
-        hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-        hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
-        m_overlay.set_resolution(24, 19);
         std::cerr << "Failed to open config.json" << std::endl;
+        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+        hotkey::register_key(h_wnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
+        m_overlay.set_resolution(24, 19);
         return;
     }
 
@@ -100,8 +100,8 @@ void Application::load_config()
     {
         auto hks = json.at("hotkeys");
         auto hk_overlay = hks.at("overlay");
-        hotkey::register_key(m_hwnd, hotkey::OVERLAY, hk_overlay.at("mod"), hk_overlay.at("key"));
-        hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+        hotkey::register_key(h_wnd, hotkey::OVERLAY, hk_overlay.at("mod"), hk_overlay.at("key"));
+        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
     }
     
 
@@ -136,30 +136,10 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
 // Posts keyboard event messages for wnd_proc to process
 LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    // w_param contains event type
-    // l_param contains event data
-    if (n_code >= 0)
+    if (m_overlay.keyboard_proc_receiver(n_code, w_param, l_param))
     {
-        KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
-        WPARAM vk_code = p_keydata->vkCode;
-
-        // Allow certain mod keys to pass, shift for right click
-        if (vk_code == VK_SHIFT || vk_code == VK_LSHIFT || vk_code == VK_RSHIFT ||
-            vk_code == VK_LWIN || vk_code == VK_RWIN)
-        {
-            return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
-        }
-
-        switch (w_param) {
-        case WM_KEYDOWN:
-        case WM_KEYUP:
-        case WM_SYSKEYDOWN:
-        case WM_SYSKEYUP:
-            ::PostMessage(m_hwnd, (UINT)w_param, vk_code, l_param);
-            return 1;  // Block the key input for further receivers
-        }
+        return 1;
     }
-
     // Pass the input to further receivers
     return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
 }
@@ -181,7 +161,7 @@ LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_pa
 void Application::destroy_proc()
 {
     detach_hooks();
-    hotkey::unregister_hotkeys(m_hwnd);
+    hotkey::unregister_hotkeys(h_wnd);
     ::PostQuitMessage(0);
 }
 
@@ -217,7 +197,7 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
 
     switch (key) {
     case VK_F4:
-        ::DestroyWindow(m_hwnd);
+        ::DestroyWindow(h_wnd);
         return;
 
     case VK_ESCAPE:
@@ -237,7 +217,6 @@ void Application::handle_keydown(WPARAM key, LPARAM details)
 
     std::cout << "-> VK char:\t" << (char)key << "\n";
 
-    // COULD TURN THIS INTO A VALIDATOR FOR ALSO THE GUI
     // Map input virtual key to actual key (fails for certain keys like öäå for some reason)
     wchar_t uni_key = key;  // Fail-safe
     {
@@ -279,14 +258,14 @@ void Application::handle_hotkey(WPARAM w_param)
 {
     switch (w_param) {
     case hotkey::CLOSE:
-        ::DestroyWindow(m_hwnd);   // Send WM_DESTROY message
+        ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
         break;
 
     case hotkey::OVERLAY:
         // Prevent control from getting stuck. For whatever reason
         // right mod keys won't release. Make dynamic later.
         release_key(VK_LCONTROL);
-        show_overlay(!::IsWindowVisible(m_hwnd));
+        show_overlay(!::IsWindowVisible(h_wnd));
         break;
     }
 }
@@ -298,8 +277,8 @@ void Application::show_overlay(bool show)
         attach_hooks();
 
         // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
-        ::ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
-        ::SetWindowPos(m_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        ::ShowWindow(h_wnd, SW_SHOWNOACTIVATE);
+        ::SetWindowPos(h_wnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
     else
     {
@@ -308,19 +287,19 @@ void Application::show_overlay(bool show)
 
         // Repaint so that the old bitmap is not shown
         force_repaint();
-        ::ShowWindow(m_hwnd, SW_HIDE);
+        ::ShowWindow(h_wnd, SW_HIDE);
     }
 }
 
 void Application::paint_event()
 {
-    m_overlay.render(m_hwnd);
+    m_overlay.render(h_wnd);
 }
 
 void Application::force_repaint()
 {
-    ::InvalidateRect(m_hwnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
-    ::UpdateWindow(m_hwnd);                 // Post WM_PAINT event
+    ::InvalidateRect(h_wnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
+    ::UpdateWindow(h_wnd);                 // Post WM_PAINT event
 }
 
 void Application::click_at(int x, int y, bool right_click)

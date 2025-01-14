@@ -12,12 +12,12 @@
 #include <vector>
 #include <cwchar>
 
-#include "json.hpp"
-
 #include "defines.h"
 #include "overlay.h"
 #include "hotkeys.h"
 
+#include "json.hpp"
+using json = nlohmann::json;
 /*
 TODO:
 - Adjustable alpha for text
@@ -26,7 +26,6 @@ TODO:
 - Make holding input key hold click and arrows move cursor
 */
 
-using json = nlohmann::json;
 
 /*
  * The Keydows overlay application. Uses low-level
@@ -35,9 +34,10 @@ using json = nlohmann::json;
  */
 class Application
 {
+public:
+    static HWND h_wnd;
 private:
     static WNDCLASSEXW m_wcex;
-    static HWND m_hwnd;
     static HHOOK m_keyboard_hook;
     static HHOOK m_mouse_hook;
 
@@ -46,6 +46,12 @@ public:
     Application(HINSTANCE h_instance);
     ~Application();
     int run();
+    
+    static void attach_hooks();
+    static void detach_hooks();
+    static void click_at(int x, int y, bool right_click);
+    static void release_key(int vk_code);
+    static bool is_key_down(int vk_code);
 
 private:
     static void load_config();
@@ -53,15 +59,10 @@ private:
     static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static void destroy_proc();
-    static void attach_hooks();
-    static void detach_hooks();
 
     static void handle_keydown(WPARAM key, LPARAM details);
     static void handle_hotkey(WPARAM w_param);
     static void show_overlay(bool show);
     static void paint_event();
     static void force_repaint();
-    static void click_at(int x, int y, bool right_click);
-    static void release_key(int vk_code);
-    static bool is_key_down(int vk_code);
 };

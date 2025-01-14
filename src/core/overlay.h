@@ -3,6 +3,8 @@
 #include <string>
 #include <iostream>
 
+class Application;
+
 class Overlay
 {
 public:
@@ -42,6 +44,7 @@ private:
 public:
     Overlay();
     ~Overlay();
+    bool keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param);
     void render(HWND h_wnd);
     int enter_input(wchar_t input_char);
     int undo_input();

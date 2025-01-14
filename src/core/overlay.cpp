@@ -1,5 +1,6 @@
 #include "overlay.h"
 #include "defines.h"
+#include "application.h"
 
 Overlay::Overlay()
     : m_input_data({-1, -1})
@@ -39,6 +40,36 @@ void Overlay::set_charset(const wchar_t *charset)
 void Overlay::set_click_direction_charset(const wchar_t *charset)
 {
     m_click_direction_charset = charset;
+}
+
+// Returns bool whether to block the event or no
+bool Overlay::keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param)
+{
+    // w_param contains event type
+    // l_param contains event data
+    if (n_code >= 0)
+    {
+        KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
+        WPARAM vk_code = p_keydata->vkCode;
+
+        // Allow certain mod keys to pass, shift for right click
+        if (vk_code == VK_SHIFT || vk_code == VK_LSHIFT || vk_code == VK_RSHIFT ||
+            vk_code == VK_LWIN || vk_code == VK_RWIN)
+        {
+            return false;
+        }
+
+        switch (w_param) {
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+            ::PostMessage(Application::h_wnd, (UINT)w_param, vk_code, l_param);
+            return true;  // Block the key input for further receivers
+        }
+    }
+    std::cout << "KOODIITKU\n";
+    return false;
 }
 
 void Overlay::render(HWND h_wnd)
