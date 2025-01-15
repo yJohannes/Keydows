@@ -43,13 +43,18 @@ private:
 public:
     Overlay();
     ~Overlay();
-    bool keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param);
     void activate(bool on);
+public:
+    // Render
     void render(HWND h_wnd);
+
+    // Key Events
+    bool keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param);
     int enter_input(wchar_t input_char);
     int undo_input();
     void clear_input();
 
+    // Setters & Getters
     void set_size(int x, int y);
     void set_resolution(int x, int y);
     void set_charset(const wchar_t* charset);
@@ -59,6 +64,7 @@ public:
     wchar_t input_1() const { return m_input_char_1; } 
     wchar_t input_2() const { return m_input_char_2; } 
 
+    // Helpers
     int get_char_index(wchar_t c) const;
     void char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out) const;
     void chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_out) const;
@@ -70,6 +76,10 @@ public:
     { return (get_char_index(c) != -1); }
 
 private:
+    // Render
     void render_overlay_bitmap(HDC h_dc);
     void delete_cached_default_overlay();
+
+    // Key Events
+    void process_keydown(WPARAM key, LPARAM details);
 };

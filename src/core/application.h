@@ -10,6 +10,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <thread>
 #include <cwchar>
 
 #include "defines.h"
@@ -45,13 +46,16 @@ private:
 public:
     Application(HINSTANCE h_instance);
     ~Application();
-    int run();
+    static int run();
+    static void shutdown();
     
     static void attach_hooks();
     static void detach_hooks();
     static void repaint();
     static void show_window(bool show);
-    static void click_at(int x, int y, bool right_click);
+    static void click(int x, int y, bool right_click);
+    static void click_async(int x, int y, bool right_click);
+
     static void release_key(int vk_code);
     static bool is_key_down(int vk_code);
 
@@ -60,9 +64,7 @@ private:
     static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
-    static void destroy_proc();
 
-    static void handle_keydown(WPARAM key, LPARAM details);
     static void handle_hotkey(WPARAM w_param);
     static void paint_event();
 };
