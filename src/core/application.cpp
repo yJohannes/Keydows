@@ -2,16 +2,11 @@
 #include "application.h"
 
 WNDCLASSEXW  Application::m_wcex;
-HWND Application::m_hwnd = nullptr;
+HWND Application::h_wnd = nullptr;
 HHOOK Application::m_keyboard_hook = nullptr;
 HHOOK Application::m_mouse_hook = nullptr;
 Overlay Application::m_overlay;
 
-/*
- * Creates the Keydows overlay application that uses a low-level
- * mouse and keyboard hook to catch keystrokes. The overlay never
- * obtains focus and therefore only relies on said hooks.
- */
 Application::Application(HINSTANCE h_instance)
 {
 #if NTDDI_VERSION >= NTDDI_WINBLUE
@@ -32,7 +27,7 @@ Application::Application(HINSTANCE h_instance)
     m_wcex.lpszClassName  = class_name;
     ::RegisterClassExW(&m_wcex);
 
-    m_hwnd = ::CreateWindowExW(
+    h_wnd = ::CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
         class_name,
         L"Keydows Overlay Window",
@@ -45,14 +40,10 @@ Application::Application(HINSTANCE h_instance)
     );
 
     // This does nothing at the moment for text
-    ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 220, LWA_ALPHA | LWA_COLORKEY);
-    hotkey::register_key(m_hwnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-    hotkey::register_key(m_hwnd, hotkey::OVERLAY, MOD_ALT, VK_OEM_PERIOD);
+    ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 128, LWA_ALPHA | LWA_COLORKEY);
 
-    m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
-    m_overlay.set_resolution(28, 22);
-
-    show_overlay(false);
+    load_config();
+    m_overlay.activate(false);
 }
 
 Application::~Application()
@@ -72,6 +63,52 @@ int Application::run()
     return (int)msg.wParam;
 }
 
+void Application::load_config()
+{
+    // std::ifstream config_file("../config.json");
+    std::ifstream config_file("config.json");
+    
+    if (!config_file.is_open())
+    {
+        std::cerr << "Failed to open config.json" << std::endl;
+        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+        hotkey::register_key(h_wnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
+        m_overlay.set_resolution(24, 19);
+        return;
+    }
+
+    json json;
+    config_file >> json;
+
+    // Application
+    {
+        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+    }
+
+    // Overlay
+    {
+        auto overlay = json.at("overlay");
+
+        auto resolution = overlay.at("resolution");
+        int x = resolution.at(0);
+        int y = resolution.at(1);
+
+        m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
+        m_overlay.set_resolution(x, y);
+        
+        std::string charset = overlay.at("charset");
+        std::string dir_charset = overlay.at("click_direction_charset");
+        
+        m_overlay.set_charset(std::wstring(charset.begin(), charset.end()).c_str());
+        m_overlay.set_click_direction_charset(std::wstring(dir_charset.begin(), dir_charset.end()).c_str());
+
+        // Hotkeys
+        auto hk = overlay.at("hotkeys");
+        auto activate = hk.at("activate");
+        hotkey::register_key(h_wnd, hotkey::OVERLAY, activate.at("mod"), activate.at("key"));
+    }
+}
+
 #pragma region Proc, hook
 LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
 {
@@ -80,17 +117,16 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
         handle_hotkey(w_param);
         return 0;
 
-    case WM_KEYDOWN:
-    case WM_SYSKEYDOWN:
-        handle_keydown(w_param, l_param);
-        return 0;
+    // case WM_KEYDOWN:
+    // case WM_SYSKEYDOWN:
+        // return 0;
 
     case WM_PAINT:
         paint_event();
         return 0;
 
     case WM_DESTROY:
-        destroy_proc();
+        shutdown();
         return 0;
 
     default:
@@ -101,30 +137,10 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
 // Posts keyboard event messages for wnd_proc to process
 LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    // w_param contains event type
-    // l_param contains event data
-    if (n_code >= 0)
+    if (m_overlay.keyboard_proc_receiver(n_code, w_param, l_param))
     {
-        KBDLLHOOKSTRUCT* p_keydata = (KBDLLHOOKSTRUCT*)l_param;
-        WPARAM vk_code = p_keydata->vkCode;
-
-        // Allow certain mod keys to pass, shift for right click
-        if (vk_code == VK_SHIFT || vk_code == VK_LSHIFT || vk_code == VK_RSHIFT ||
-            vk_code == VK_LWIN || vk_code == VK_RWIN)
-        {
-            return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
-        }
-
-        switch (w_param) {
-        case WM_KEYDOWN:
-        case WM_KEYUP:
-        case WM_SYSKEYDOWN:
-        case WM_SYSKEYUP:
-            ::PostMessage(m_hwnd, (UINT)w_param, vk_code, l_param);
-            return 1;  // Block the key input for further receivers
-        }
+        return 1;
     }
-
     // Pass the input to further receivers
     return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
 }
@@ -135,7 +151,7 @@ LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_pa
     {
         if ((w_param == WM_LBUTTONDOWN) || (w_param == WM_RBUTTONDOWN))
         {
-            show_overlay(false);
+            m_overlay.activate(false);
         }
     }
 
@@ -143,10 +159,11 @@ LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_pa
     return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
 }
 
-void Application::destroy_proc()
+void Application::shutdown()
 {
     detach_hooks();
-    hotkey::unregister_hotkeys(m_hwnd);
+    hotkey::unregister_hotkeys(h_wnd);
+    ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
     ::PostQuitMessage(0);
 }
 
@@ -173,111 +190,55 @@ void Application::detach_hooks()
     ::UnhookWindowsHookEx(m_keyboard_hook);
     ::UnhookWindowsHookEx(m_mouse_hook);
 }
-#pragma endregion
-
+#pragma endregion Proc, hook
 #pragma region Event
-void Application::handle_keydown(WPARAM key, LPARAM details)
-{
-    std::cout << "VK pressed:\t" << key << "\n";
-
-    switch (key) {
-    case VK_F4:
-        ::DestroyWindow(m_hwnd);
-        return;
-
-    case VK_ESCAPE:
-        show_overlay(false);
-        return;
-
-    case VK_BACK:  // Remove a typed key
-        m_overlay.undo_input();
-        force_repaint();
-        return;
-
-    case VK_RETURN:
-        m_overlay.clear_input();
-        force_repaint();
-        return;
-    }
-
-    std::cout << "-> VK char:\t" << (char)key << "\n";
-
-    // COULD TURN THIS INTO A VALIDATOR FOR ALSO THE GUI
-    // Map input virtual key to actual key (fails for certain keys for some reason) 
-    wchar_t uni_key = key;  // Fail-safe
-    {
-        BYTE kb_state[256];
-        ::GetKeyboardState(kb_state);
-
-        UINT scan_code = (details >> 16) & 0xFF;
-        ::ToUnicode(key, scan_code, kb_state, &uni_key, 1, 0);
-        uni_key = towupper(uni_key);  // Uppercase letters, also could use lowercase to detect shift. Just a thought
-    }
-
-    int result = m_overlay.enter_input(uni_key);
-    switch (result)
-    {
-    case Overlay::FIRST_INPUT:
-    case Overlay::SECOND_INPUT:
-        force_repaint();    // Force repaint to update highlights
-        break;
-    case Overlay::TRIGGERED:
-        int x = m_overlay.input_data()->x;
-        int y = m_overlay.input_data()->y;
-        click_at(x, y, is_key_down(VK_SHIFT));
-        show_overlay(false);
-        force_repaint();
-        break;
-    }
-}
 
 void Application::handle_hotkey(WPARAM w_param)
 {
     switch (w_param) {
     case hotkey::CLOSE:
-        ::DestroyWindow(m_hwnd); // Send WM_DESTROY message
+        shutdown();
         break;
+
     case hotkey::OVERLAY:
-        release_key(VK_MENU);
-        show_overlay(!::IsWindowVisible(m_hwnd));
+        // Prevent control from getting stuck. For whatever reason
+        // right mod keys won't release. Make dynamic later.
+        release_key(VK_LCONTROL);
+        m_overlay.activate(!::IsWindowVisible(h_wnd));
+        // show_window(!::IsWindowVisible(h_wnd));
+
         break;
     }
 }
 
-void Application::show_overlay(bool show)
+void Application::show_window(bool show)
 {
     if (show)
     {
-        attach_hooks();
-
-        // Because the window never has focus, it can't receive keydown events; only uses global keyboard hook
-        ::ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
-        ::SetWindowPos(m_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        // Because the window never has focus, it can't receive keydown events
+        ::ShowWindow(h_wnd, SW_SHOWNOACTIVATE);
+        ::SetWindowPos(h_wnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
     else
     {
-        detach_hooks();
-        m_overlay.clear_input();
-
         // Repaint so that the old bitmap is not shown
-        force_repaint();
-        ::ShowWindow(m_hwnd, SW_HIDE);
+        repaint();
+        ::ShowWindow(h_wnd, SW_HIDE);
     }
 }
 
 void Application::paint_event()
 {
-    m_overlay.render(m_hwnd);
+    m_overlay.render(h_wnd);
 }
 
-void Application::force_repaint()
+void Application::repaint()
 {
-    // Force a repaint of the window by invalidating its client area
-    ::InvalidateRect(m_hwnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
-    ::UpdateWindow(m_hwnd);                 // Force the window to repaint immediately
+    ::InvalidateRect(h_wnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
+    ::UpdateWindow(h_wnd);                 // Post WM_PAINT event
 }
 
-void Application::click_at(int x, int y, bool right_click)
+void Application::click(int x, int y, bool right_click)
 {
     INPUT inputs[2] = {};
     inputs[0].type = INPUT_MOUSE;
@@ -300,11 +261,17 @@ void Application::click_at(int x, int y, bool right_click)
     inputs[1].mi.dwFlags = up;
 
     ::SetCursorPos(x, y);
-    ::SendInput(2, inputs, sizeof(INPUT));
+    ::SendInput(1, &inputs[0], sizeof(INPUT));
+    ::Sleep(25); // Send the inputs with a delay because some apps may not register them otherwise
+    ::SendInput(1, &inputs[1], sizeof(INPUT));
 }
 
-// Used for releasing specifially the alt key so it doesn't get
-// left on hold after overlay is activated
+void Application::click_async(int x, int y, bool right_click)
+{
+    std::thread(&Application::click, x, y, right_click).detach();
+}
+
+// Used for releasing keys so they don't get left on hold after overlay is activated
 void Application::release_key(int vk_code)
 {
     INPUT input = {0};

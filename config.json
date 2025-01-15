@@ -1,0 +1,27 @@
+{
+    "application": {
+        "style": {
+            "alpha": 128
+        }
+    },
+
+    "overlay": {
+        "resolution": [32, 26],
+        "charset": "ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-",
+        "click_direction_charset": "WSADQE,.",
+        
+        "hotkeys": {
+            "activate": {
+                "mod": 2,
+                "key": 190
+            }
+        },
+
+        "style": {
+            "text": [255, 255, 255],
+            "background": [0, 0, 0],
+            "selected-text": [0, 0, 0],
+            "selected-background": [255, 255, 255]
+        }
+    }
+}

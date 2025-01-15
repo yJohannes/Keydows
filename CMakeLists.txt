@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 file(GLOB_RECURSE SOURCES src/*.cpp)
 
 include_directories(src)
+include_directories(vendor)
 add_definitions(-DUNICODE -D_UNICODE)
 add_executable(keydows ${SOURCES})
+
 target_link_libraries(keydows user32 gdi32 shcore gdiplus)

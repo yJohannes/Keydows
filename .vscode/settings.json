@@ -72,6 +72,15 @@
         "numbers": "cpp",
         "span": "cpp",
         "text_encoding": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "forward_list": "cpp",
+        "ranges": "cpp",
+        "valarray": "cpp",
+        "fstream": "cpp",
+        "any": "cpp",
+        "codecvt": "cpp",
+        "map": "cpp",
+        "iomanip": "cpp",
+        "sstream": "cpp"
     }
 }
