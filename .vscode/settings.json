@@ -75,6 +75,12 @@
         "variant": "cpp",
         "forward_list": "cpp",
         "ranges": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "fstream": "cpp",
+        "any": "cpp",
+        "codecvt": "cpp",
+        "map": "cpp",
+        "iomanip": "cpp",
+        "sstream": "cpp"
     }
 }
