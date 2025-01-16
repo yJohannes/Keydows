@@ -2,7 +2,7 @@
 
 namespace hotkey
 {
-    unsigned int registered_key_count = 0; // Define the static variable here
+    unsigned int registered_key_count = 0;
 
     void register_key(HWND h_wnd, int hk_id, int mod, int vk)
     {
@@ -28,4 +28,5 @@ namespace hotkey
         }
         registered_key_count = 0;
     }
+
 } // namespace hotkey
