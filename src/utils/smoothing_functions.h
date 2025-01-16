@@ -1,8 +1,9 @@
 // https://nicmulvaney.com/easing
 
+#pragma once
 #include <cmath>
 
-namespace smf
+namespace smoothing
 {
     constexpr double pi = 3.14159265358979323846;
 
@@ -22,4 +23,4 @@ namespace smf
     ease_in_out_sine(double t)
     { return 1.0 - std::cos(pi * t) / 2; }
     
-} // namespace smf
+} // namespace smoothing
