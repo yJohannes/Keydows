@@ -7,8 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Recursively gather all source files in the 'src' directory
 file(GLOB_RECURSE SOURCES src/*.cpp)
 
-include_directories(src)
-include_directories(vendor)
+include_directories(
+    src
+    vendor
+)
+
 add_definitions(-DUNICODE -D_UNICODE)
 add_executable(keydows ${SOURCES})
 
