@@ -5,7 +5,12 @@ WNDCLASSEXW  Application::m_wcex;
 HWND Application::h_wnd = nullptr;
 HHOOK Application::m_keyboard_hook = nullptr;
 HHOOK Application::m_mouse_hook = nullptr;
+
+std::map<int, HookListener> Application::m_keyboard_listeners;
+std::map<int, HookListener> Application::m_mouse_listeners;
+
 Overlay Application::m_overlay;
+SmoothScroll Application::m_smooth_scroll;
 
 Application::Application(HINSTANCE h_instance)
 {
@@ -28,7 +33,7 @@ Application::Application(HINSTANCE h_instance)
     ::RegisterClassExW(&m_wcex);
 
     h_wnd = ::CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
         class_name,
         L"Keydows Overlay Window",
         WS_POPUP | WS_VISIBLE,
@@ -40,7 +45,7 @@ Application::Application(HINSTANCE h_instance)
     );
 
     // This does nothing at the moment for text
-    ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 128, LWA_ALPHA | LWA_COLORKEY);
+    ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
 
     load_config();
     m_overlay.activate(false);
@@ -109,17 +114,12 @@ void Application::load_config()
     }
 }
 
-#pragma region Proc, hook
 LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
 {
     switch (message) {
     case WM_HOTKEY:
         handle_hotkey(w_param);
         return 0;
-
-    // case WM_KEYDOWN:
-    // case WM_SYSKEYDOWN:
-        // return 0;
 
     case WM_PAINT:
         paint_event();
@@ -137,7 +137,11 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
 // Posts keyboard event messages for wnd_proc to process
 LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    if (m_overlay.keyboard_proc_receiver(n_code, w_param, l_param))
+    for (auto listener : m_keyboard_listeners)
+    {
+        
+    }
+    if (m_overlay.keyboard_hook_listener(n_code, w_param, l_param))
     {
         return 1;
     }
@@ -147,16 +151,25 @@ LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l
 
 LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    if (n_code == HC_ACTION)
+    if (m_overlay.mouse_hook_listener(n_code, w_param, l_param))
     {
-        if ((w_param == WM_LBUTTONDOWN) || (w_param == WM_RBUTTONDOWN))
-        {
-            m_overlay.activate(false);
-        }
+        return 1;
     }
 
     // Pass the input to further receivers
     return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
+}
+
+std::map<int, HookListener>* Application::get_hook_listener_map(int hook_type)
+{
+    switch (hook_type) {
+    case KEYBOARD:
+        return &m_keyboard_listeners;
+    case MOUSE:
+        return &m_mouse_listeners;
+    default:
+        return nullptr;
+    }
 }
 
 void Application::shutdown()
@@ -167,31 +180,91 @@ void Application::shutdown()
     ::PostQuitMessage(0);
 }
 
+int Application::register_listener(int hook_type, HookListener listener)
+{
+    auto* map = get_hook_listener_map(hook_type);
+    int id = 0;
+
+    for (const auto& kv : *map)
+    {
+        if (kv.first == id)
+            id++;
+        else
+            break;
+    }
+
+    attach_hook(hook_type);
+    (*map)[id] = listener;
+    return id;
+}
+
+void Application::unregister_listener(int hook_type, int id)
+{
+    auto* map = get_hook_listener_map(hook_type);
+    map->erase(id);
+
+    // If no hooks are in use
+    if (map->empty())
+    {
+        detach_hook(hook_type);
+    }
+}
+
+void Application::attach_hook(int hook_type)
+{
+    switch (hook_type) {
+    case KEYBOARD:
+        if (m_keyboard_hook != nullptr)
+            return;
+
+        m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
+        if (!m_keyboard_hook)
+        {
+            std::cerr << "Failed to install keyboard hook!" << std::endl;
+            ::MessageBox(NULL, L"Failed to install keyboard hook!", L"Error", MB_ICONERROR | MB_OK);
+        }
+        return;
+
+    case MOUSE:
+        if (m_mouse_hook != nullptr)
+            return;
+
+        m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
+        if (!m_mouse_hook)
+        {
+            std::cerr << "Failed to install mouse hook!" << std::endl;
+            ::MessageBox(NULL, L"Failed to install mouse hook!", L"Error", MB_ICONERROR | MB_OK);
+        }
+        return;
+    }
+}
+
+void Application::detach_hook(int hook_type)
+{
+    switch (hook_type) {
+    case KEYBOARD:
+        ::UnhookWindowsHookEx(m_keyboard_hook);
+        m_keyboard_hook = nullptr;
+        return;
+
+    case MOUSE:
+        ::UnhookWindowsHookEx(m_mouse_hook);
+        m_mouse_hook = nullptr;
+        return;
+    }
+}
 
 void Application::attach_hooks()
 {
-    m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
-    if (!m_keyboard_hook)
-    {
-        std::cerr << "Failed to install keyboard hook!" << std::endl;
-        ::MessageBox(NULL, L"Failed to install keyboard hook!", L"Error", MB_ICONERROR | MB_OK);
-    }
-
-    m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
-    if (!m_mouse_hook)
-    {
-        std::cerr << "Failed to install mouse hook!" << std::endl;
-        ::MessageBox(NULL, L"Failed to install mouse hook!", L"Error", MB_ICONERROR | MB_OK);
-    }
+    attach_hook(KEYBOARD);
+    attach_hook(MOUSE);
 }
 
 void Application::detach_hooks()
 {
-    ::UnhookWindowsHookEx(m_keyboard_hook);
-    ::UnhookWindowsHookEx(m_mouse_hook);
+    detach_hook(KEYBOARD);
+    detach_hook(MOUSE);
 }
-#pragma endregion Proc, hook
-#pragma region Event
 
 void Application::handle_hotkey(WPARAM w_param)
 {
@@ -227,6 +300,11 @@ void Application::show_window(bool show)
     }
 }
 
+void Application::move_cursor(int x, int y)
+{
+    ::SetCursorPos(x, y);
+}
+
 void Application::paint_event()
 {
     m_overlay.render(h_wnd);
@@ -238,7 +316,7 @@ void Application::repaint()
     ::UpdateWindow(h_wnd);                 // Post WM_PAINT event
 }
 
-void Application::click(int x, int y, bool right_click)
+void Application::click(int n, int x, int y, bool right_click)
 {
     INPUT inputs[2] = {};
     inputs[0].type = INPUT_MOUSE;
@@ -261,14 +339,19 @@ void Application::click(int x, int y, bool right_click)
     inputs[1].mi.dwFlags = up;
 
     ::SetCursorPos(x, y);
-    ::SendInput(1, &inputs[0], sizeof(INPUT));
-    ::Sleep(25); // Send the inputs with a delay because some apps may not register them otherwise
-    ::SendInput(1, &inputs[1], sizeof(INPUT));
+
+    for (int i = 0; i < n; ++i)
+    {
+        // Send the inputs with a delay because some apps may not register them otherwise
+        ::SendInput(1, &inputs[0], sizeof(INPUT));
+        ::Sleep(25);
+        ::SendInput(1, &inputs[1], sizeof(INPUT));
+    }
 }
 
-void Application::click_async(int x, int y, bool right_click)
+void Application::click_async(int n, int x, int y, bool right_click)
 {
-    std::thread(&Application::click, x, y, right_click).detach();
+    std::thread(&Application::click, n, x, y, right_click).detach();
 }
 
 // Used for releasing keys so they don't get left on hold after overlay is activated
@@ -288,5 +371,3 @@ bool Application::is_key_down(int virtual_key)
     //
     return ::GetAsyncKeyState(virtual_key) & 0x8000;
 }
-
-#pragma endregion
