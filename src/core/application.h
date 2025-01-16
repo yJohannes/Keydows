@@ -19,14 +19,13 @@ using json = nlohmann::json;
 #include "defines.h"
 #include "utils/hotkeys.h"
 #include "overlay.h"
-#include "smoothscroll.h"
+#include "smooth_scroll.h"
 
 #define KEYBOARD 0
 #define MOUSE 1
 #define CREATE_LISTENER(listener) \
     [this](int a, WPARAM b, LPARAM c) { return listener(a, b, c); }
 
-// using HookListener = bool(*)(int, WPARAM, LPARAM);
 using HookListener = std::function<bool(int, WPARAM, LPARAM)>;
 
 /*

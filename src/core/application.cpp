@@ -49,6 +49,7 @@ Application::Application(HINSTANCE h_instance)
 
     load_config();
     m_overlay.activate(false);
+    m_smooth_scroll.activate(true);
 }
 
 Application::~Application()
@@ -70,8 +71,8 @@ int Application::run()
 
 void Application::load_config()
 {
-    // std::ifstream config_file("../config.json");
-    std::ifstream config_file("config.json");
+    std::ifstream config_file("../config.json");
+    // std::ifstream config_file("config.json");
     
     if (!config_file.is_open())
     {
@@ -84,11 +85,6 @@ void Application::load_config()
 
     json json;
     config_file >> json;
-
-    // Application
-    {
-        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-    }
 
     // Overlay
     {
@@ -112,6 +108,8 @@ void Application::load_config()
         auto activate = hk.at("activate");
         hotkey::register_key(h_wnd, hotkey::OVERLAY, activate.at("mod"), activate.at("key"));
     }
+
+    hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
 }
 
 LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
@@ -137,13 +135,12 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
 // Posts keyboard event messages for wnd_proc to process
 LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    for (auto listener : m_keyboard_listeners)
+    for (auto& listener : m_keyboard_listeners)
     {
-        
-    }
-    if (m_overlay.keyboard_hook_listener(n_code, w_param, l_param))
-    {
-        return 1;
+        if (listener.second(n_code, w_param, l_param))
+        {
+            return 1;
+        }
     }
     // Pass the input to further receivers
     return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
@@ -151,9 +148,12 @@ LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l
 
 LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    if (m_overlay.mouse_hook_listener(n_code, w_param, l_param))
+    for (auto& listener : m_mouse_listeners)
     {
-        return 1;
+        if (listener.second(n_code, w_param, l_param))
+        {
+            return 1;
+        }
     }
 
     // Pass the input to further receivers
@@ -195,6 +195,7 @@ int Application::register_listener(int hook_type, HookListener listener)
 
     attach_hook(hook_type);
     (*map)[id] = listener;
+    std::cout << "Registered listener\n";
     return id;
 }
 
@@ -202,6 +203,7 @@ void Application::unregister_listener(int hook_type, int id)
 {
     auto* map = get_hook_listener_map(hook_type);
     map->erase(id);
+    std::cout << "Unregistered listener\n";
 
     // If no hooks are in use
     if (map->empty())
