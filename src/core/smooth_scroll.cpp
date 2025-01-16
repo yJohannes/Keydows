@@ -1,9 +1,12 @@
-#include "smoothscroll.h"
+#include "smooth_scroll.h"
+#include "application.h"
 
 SmoothScroll::SmoothScroll()
-    : m_acceleration(10.0)
+    : m_scroll_interval_ms(10)
+    , m_acceleration(10.0)
     , m_max_speed(20.0)
     , m_speed(0.0)
+    , m_scrolling(false)
 {
     ::QueryPerformanceFrequency(&m_timer_frequency);
 }
@@ -22,8 +25,6 @@ void SmoothScroll::activate(bool on)
             KEYBOARD,
             CREATE_LISTENER(keyboard_hook_listener)
         );
-
-        Application::show_window(true);
     }
     else
     {
@@ -41,14 +42,46 @@ bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, L
     LPARAM press_type = w_param;
 
     switch (key) {
-    case VK_UP:
-    case VK_DOWN:
-    case VK_LEFT:
-    case VK_RIGHT:
-        double p = m_speed / m_max_speed;
-        
+    case SCROLL_UP:
+    case SCROLL_DOWN:
+        if (!m_scrolling)
+        {
+            std::thread(&SmoothScroll::start_scroll, this, key).detach();
+        }
+        // return true; FIX KEYS BEING SENT
     }
+    return false;
+}
 
+void SmoothScroll::start_scroll(int vk_direction)
+{
+    m_scrolling = true;
+    signed dir = (vk_direction == SCROLL_UP) ? 1 : -1;
+    while (Application::is_key_down(vk_direction))
+    {
+        scroll(dir * 0.1);
+        if (!Application::is_key_down(vk_direction))
+        {
+            break;
+        }
+        ::Sleep(m_scroll_interval_ms);
+    }
+    m_scrolling = false;
+}
+
+void SmoothScroll::scroll(double delta) const
+{
+    int d = static_cast<int>(delta * 120); // Scale by the standard delta unit
+
+    INPUT input = { 0 };
+    input.type = INPUT_MOUSE;
+    input.mi.dwFlags = (d > 0) ? MOUSEEVENTF_WHEEL : MOUSEEVENTF_WHEEL;
+    input.mi.mouseData = d;
+
+    // Send the input event
+    SendInput(1, &input, sizeof(INPUT));
+
+    std::cout << "Scrolled " << delta << "\n";
 }
 
 void SmoothScroll::set_acceleration(double a)
