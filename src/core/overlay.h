@@ -3,29 +3,37 @@
 #include <string>
 #include <iostream>
 
+#undef DOUBLE_CLICK
+
+#define QUIT_PROGRAM    VK_F4
+#define HIDE_OVERLAY    VK_ESCAPE
+#define REMOVE_INPUT    VK_BACK
+#define CLEAR_INPUTS    VK_RETURN
+
+#define M_MOVE_MOUSE      L'C'
+#define M_DOUBLE_CLICK    L'V'
+#define M_TRIPLE_CLICK    L'N'
+#define M_QUAD_CLICK      L'M'
+
 class Application;
 
 class Overlay
 {
 public:
-    enum InputState
+    enum InputType
     {
         NO_INPUT,
         FIRST_INPUT,
         SECOND_INPUT,
-        CLICKED,
-        REPEATED_CLICK_KEY
+        MOVE_MOUSE,
+        CLICK,
+        DOUBLE_CLICK,
+        TRIPLE_CLICK,
+        QUAD_CLICK
     };
 
 private:
-    struct InputData
-    {
-        int x;
-        int y;
-        wchar_t click_key;
-    };
-    InputData m_input_data;
-
+    POINT m_click_pos;
     SIZE m_size;
     SIZE m_resolution;
 
@@ -44,14 +52,13 @@ public:
     Overlay();
     ~Overlay();
     void activate(bool on);
-public:
-    // Render
     void render(HWND h_wnd);
 
     // Key Events
-    bool keyboard_proc_receiver(int n_code, WPARAM w_param, LPARAM l_param);
+    bool CALLBACK keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
+    bool CALLBACK mouse_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
     int enter_input(wchar_t input_char);
-    int undo_input();
+    void undo_input();
     void clear_input();
 
     // Setters & Getters
@@ -60,7 +67,6 @@ public:
     void set_charset(const wchar_t* charset);
     void set_click_direction_charset(const wchar_t* charset);
 
-    InputData* input_data() { return &m_input_data; }
     wchar_t input_1() const { return m_input_char_1; } 
     wchar_t input_2() const { return m_input_char_2; } 
 
@@ -68,12 +74,8 @@ public:
     int get_char_index(wchar_t c) const;
     void char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out) const;
     void chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_out) const;
-
-    bool is_valid_coordinate(int x, int y) const
-    { return x >= 0 && x < m_size.cx && y >= 0 && y < m_size.cy; }
-
-    bool is_valid_char(wchar_t c) const
-    { return (get_char_index(c) != -1); }
+    bool is_valid_coordinate(int x, int y) const { return x >= 0 && x < m_size.cx && y >= 0 && y < m_size.cy; }
+    bool is_valid_char(wchar_t c) const { return (get_char_index(c) != -1); }
 
 private:
     // Render
