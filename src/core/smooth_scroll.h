@@ -5,7 +5,7 @@
 #include <atomic>
 
 #include "defines.h"
-#include "utils/smoothing_functions.h"
+#include "utils/easing_functions.h"
 
 class Application;
 
@@ -17,17 +17,27 @@ class SmoothScroll
 private:
     double m_frequency;
     double m_step_size;
-    double m_multiplier;
-    double m_easing_time;
+    double m_modifier_scale;
+    double m_ease_in_time;
+    double m_ease_out_time;
 
-    int m_vk_up;
-    int m_vk_down;
-    int m_vk_multiplier;
-
-    LARGE_INTEGER m_timer_start;
-    LARGE_INTEGER m_timer_frequency;
+    int m_activation_key;
+    int m_up_binding;
+    int m_down_binding;
+    int m_multiplier_binding;
 
     std::atomic<bool> m_scrolling;
+    bool m_activation_key_down;
+    signed m_scroll_direction;
+
+public:
+    enum class Direction
+    {
+        UP = 1,
+        DOWN = -1,
+        STOP = 0
+    };
+
 public:
     SmoothScroll();
     ~SmoothScroll();
@@ -36,12 +46,9 @@ public:
     bool CALLBACK keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
     void scroll(double delta) const;
 
-    void mark_time_start();
-    double time_elapsed() const;
-
 private:
-    void start_scroll(int dir);
-    void end_scroll();
+    void start_scroll();
+    void end_scroll(double p);
 };
 
 // Test site
