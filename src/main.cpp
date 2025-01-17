@@ -1,3 +1,4 @@
+#include "defines.h"
 #include <windows.h>
 #include "core/application.h"
 
@@ -7,6 +8,12 @@ int APIENTRY WinMain(
     LPSTR     /*lpCmdLine*/,
     int       /*n_cmd_show*/)
 {
+    #if NTDDI_VERSION >= NTDDI_WINBLUE
+        ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+    #else
+        ::SetProcessDPIAware();
+    #endif
+
     Application app(h_instance);
     return app.run();
 }
