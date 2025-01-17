@@ -3,9 +3,15 @@
 #pragma once
 #include <cmath>
 
-namespace smoothing
+// A collection of easing functions.
+// Parameter t should be in the range [0, 1]
+namespace easing
 {
     constexpr double pi = 3.14159265358979323846;
+
+    inline double
+    reverse(double (*f)(double), double t)
+    { return 1.0 - f(t); }
 
     inline double
     linear(double t)
@@ -31,4 +37,4 @@ namespace smoothing
     ease_in_out_sine(double t)
     { return (1.0 - std::cos(pi * t)) / 2; }
 
-} // namespace smoothing
+} // namespace easing
