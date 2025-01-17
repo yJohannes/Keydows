@@ -2,17 +2,13 @@
 
 #include <windows.h>
 #include <iostream>
+#include <unordered_map>
 
 namespace hotkey
 {
-    extern unsigned int registered_key_count;
-
-    enum HotKeyID
-    {
-        CLOSE,
-        OVERLAY,
-    };
-
-    void register_key(HWND h_wnd, int hk_id, int mod, int vk);
-    void unregister_hotkeys(HWND h_wnd);
+    // Simple unique hotkey ID 
+    extern unsigned int register_counter;
+    unsigned int register_hotkey(HWND h_wnd, int hk_id, int mod, int vk);
+    void unregister_key(HWND h_wnd, int hk_id);
+    void unregister_all_hotkeys(HWND h_wnd);
 };

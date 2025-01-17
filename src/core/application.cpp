@@ -6,24 +6,17 @@ HWND Application::h_wnd = nullptr;
 HHOOK Application::m_keyboard_hook = nullptr;
 HHOOK Application::m_mouse_hook = nullptr;
 
-std::map<int, HookListener> Application::m_keyboard_listeners;
-std::map<int, HookListener> Application::m_mouse_listeners;
+std::unordered_map<int, HookListener> Application::m_keyboard_listeners;
+std::unordered_map<int, HookListener> Application::m_mouse_listeners;
 
 Overlay Application::m_overlay;
 SmoothScroll Application::m_smooth_scroll;
 
 Application::Application(HINSTANCE h_instance)
 {
-#if NTDDI_VERSION >= NTDDI_WINBLUE
-    ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-#else
-    ::SetProcessDPIAware();
-#endif
-
-    // Window creation
     const wchar_t class_name[] = L"Keydows";
     WNDCLASSEXW m_wcex = {0};
-    m_wcex.cbSize = sizeof(m_wcex);
+    m_wcex.cbSize         = sizeof(m_wcex);
     m_wcex.style          = CS_HREDRAW | CS_VREDRAW;
     m_wcex.lpfnWndProc    = wnd_proc;
     m_wcex.hInstance      = h_instance;
@@ -43,9 +36,9 @@ Application::Application(HINSTANCE h_instance)
         h_instance,
         this
     );
-
-    // This does nothing at the moment for text
     ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
+
+    timer::initialize();
 
     load_config();
     m_overlay.activate(false);
@@ -77,8 +70,8 @@ void Application::load_config()
     if (!config_file.is_open())
     {
         std::cerr << "Failed to open config.json" << std::endl;
-        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-        hotkey::register_key(h_wnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
+        hotkey::register_hotkey(h_wnd, Application::Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, 'Q');
+        hotkey::register_hotkey(h_wnd, Application::Hotkeys::OVERLAY, MOD_CONTROL, VK_OEM_PERIOD);
         m_overlay.set_resolution(24, 19);
         return;
     }
@@ -106,10 +99,10 @@ void Application::load_config()
         // Hotkeys
         auto hk = overlay.at("hotkeys");
         auto activate = hk.at("activate");
-        hotkey::register_key(h_wnd, hotkey::OVERLAY, activate.at("mod"), activate.at("key"));
+        hotkey::register_hotkey(h_wnd, Hotkeys::OVERLAY, activate.at("mod"), activate.at("key"));
     }
 
-    hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
+    hotkey::register_hotkey(h_wnd, Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, 'Q');
 }
 
 LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
@@ -160,7 +153,7 @@ LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_pa
     return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
 }
 
-std::map<int, HookListener>* Application::get_hook_listener_map(int hook_type)
+std::unordered_map<int, HookListener>* Application::get_hook_listener_map(int hook_type)
 {
     switch (hook_type) {
     case KEYBOARD:
@@ -175,7 +168,7 @@ std::map<int, HookListener>* Application::get_hook_listener_map(int hook_type)
 void Application::shutdown()
 {
     detach_hooks();
-    hotkey::unregister_hotkeys(h_wnd);
+    hotkey::unregister_all_hotkeys(h_wnd);
     ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
     ::PostQuitMessage(0);
 }
@@ -271,17 +264,15 @@ void Application::detach_hooks()
 void Application::handle_hotkey(WPARAM w_param)
 {
     switch (w_param) {
-    case hotkey::CLOSE:
+    case Hotkeys::QUIT:
         shutdown();
         break;
 
-    case hotkey::OVERLAY:
+    case Hotkeys::OVERLAY:
         // Prevent control from getting stuck. For whatever reason
         // right mod keys won't release. Make dynamic later.
         release_key(VK_LCONTROL);
         m_overlay.activate(!::IsWindowVisible(h_wnd));
-        // show_window(!::IsWindowVisible(h_wnd));
-
         break;
     }
 }

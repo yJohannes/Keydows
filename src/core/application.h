@@ -1,6 +1,7 @@
 // https://stackoverflow.com/questions/29091028/windows-api-write-to-screen-as-on-screen-display
 // https://forums.unrealengine.com/t/how-do-i-include-winuser-h-identifier-wm_touch-is-undefined-dword-is-ambiguous/69946/5
 #pragma once
+#include "defines.h"
 #include <SDKDDKVer.h>
 #include <windows.h>
 #include <shellscalingapi.h>
@@ -10,14 +11,14 @@
 #include <functional>
 #include <thread>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <cwchar>
 
 #include "json.hpp"
 using json = nlohmann::json;
 
-#include "defines.h"
 #include "utils/hotkeys.h"
+#include "utils/timer.h"
 #include "overlay.h"
 #include "smooth_scroll.h"
 
@@ -41,11 +42,20 @@ private:
     static HHOOK m_keyboard_hook;
     static HHOOK m_mouse_hook;
 
-    static std::map<int, HookListener> m_keyboard_listeners;
-    static std::map<int, HookListener> m_mouse_listeners;
+    static std::unordered_map<int, HookListener> m_keyboard_listeners;
+    static std::unordered_map<int, HookListener> m_mouse_listeners;
+
+    static std::unordered_map<int, int> m_hotkey_ids;
+
+    enum Hotkeys
+    {
+        QUIT,
+        OVERLAY
+    };
 
     static Overlay m_overlay;
     static SmoothScroll m_smooth_scroll;
+
 public:
     Application(HINSTANCE h_instance);
     ~Application();
@@ -62,10 +72,10 @@ public:
 
     static void repaint();
     static void show_window(bool show);
+
     static void move_cursor(int x, int y);
     static void click(int n, int x, int y, bool right_click);
     static void click_async(int n, int x, int y, bool right_click);
-
     static void release_key(int vk_code);
     static bool is_key_down(int vk_code);
 
@@ -74,8 +84,7 @@ private:
     static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
-
-    static std::map<int, HookListener>* get_hook_listener_map(int hook_type);
+    static std::unordered_map<int, HookListener>* get_hook_listener_map(int hook_type);
 
     static void handle_hotkey(WPARAM w_param);
     static void paint_event();
