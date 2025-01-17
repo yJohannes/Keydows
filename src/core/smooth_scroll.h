@@ -2,12 +2,10 @@
 
 #include <windows.h>
 #include <thread>
+#include <atomic>
 
 #include "defines.h"
 #include "utils/smoothing_functions.h"
-
-#define SCROLL_UP VK_UP
-#define SCROLL_DOWN VK_DOWN
 
 class Application;
 
@@ -17,15 +15,19 @@ class Application;
 class SmoothScroll
 {
 private:
-    int m_scroll_interval_ms;
-    double m_acceleration; // Time to reach max speed
-    double m_max_speed;
-    double m_speed;
+    double m_frequency;
+    double m_step_size;
+    double m_multiplier;
+    double m_easing_time;
+
+    int m_vk_up;
+    int m_vk_down;
+    int m_vk_multiplier;
 
     LARGE_INTEGER m_timer_start;
     LARGE_INTEGER m_timer_frequency;
 
-    bool m_scrolling;
+    std::atomic<bool> m_scrolling;
 public:
     SmoothScroll();
     ~SmoothScroll();
@@ -34,12 +36,13 @@ public:
     bool CALLBACK keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
     void scroll(double delta) const;
 
-    void set_acceleration(double a);
-    void set_max_speed(double max_speed);
-
     void mark_time_start();
     double time_elapsed() const;
 
 private:
     void start_scroll(int dir);
+    void end_scroll();
 };
+
+// Test site
+// https://infinite-scroll.com/options.html

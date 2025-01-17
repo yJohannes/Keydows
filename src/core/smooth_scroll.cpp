@@ -2,10 +2,13 @@
 #include "application.h"
 
 SmoothScroll::SmoothScroll()
-    : m_scroll_interval_ms(10)
-    , m_acceleration(10.0)
-    , m_max_speed(20.0)
-    , m_speed(0.0)
+    : m_frequency(144)
+    , m_step_size(0.35)
+    , m_multiplier(2)
+    , m_easing_time(0.25)
+    , m_vk_up(VK_UP)
+    , m_vk_down(VK_DOWN)
+    , m_vk_multiplier(VK_RIGHT)
     , m_scrolling(false)
 {
     ::QueryPerformanceFrequency(&m_timer_frequency);
@@ -41,33 +44,49 @@ bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, L
     WPARAM key = keydata->vkCode;
     LPARAM press_type = w_param;
 
-    switch (key) {
-    case SCROLL_UP:
-    case SCROLL_DOWN:
-        if (!m_scrolling)
+    if (w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN)
+    {
+        if (key == m_vk_up || key == m_vk_down)
         {
-            std::thread(&SmoothScroll::start_scroll, this, key).detach();
+            if (!m_scrolling)
+            {
+                std::thread(&SmoothScroll::start_scroll, this, key).detach();
+            }
+            return true;
         }
-        // return true; FIX KEYS BEING SENT
     }
+
+    else if (w_param == WM_KEYUP || w_param == WM_SYSKEYUP)
+    {
+        m_scrolling = false;
+    }
+
     return false;
 }
 
 void SmoothScroll::start_scroll(int vk_direction)
 {
+    signed dir = (vk_direction == m_vk_up) ? 1 : -1;
     m_scrolling = true;
-    signed dir = (vk_direction == SCROLL_UP) ? 1 : -1;
-    while (Application::is_key_down(vk_direction))
+    mark_time_start();
+    while (m_scrolling)
     {
-        scroll(dir * 0.1);
-        if (!Application::is_key_down(vk_direction))
+        double dt = time_elapsed();
+        double p = std::clamp(dt / m_easing_time, 0.0, 1.0);
+        double mul = Application::is_key_down(m_vk_multiplier) ? m_multiplier : (Application::is_key_down(VK_LEFT) ? 1.0 / m_multiplier : 1.0);
+        scroll(dir * m_step_size * smoothing::ease_in_out_sine(p) * mul);
+        if (!m_scrolling)
         {
             break;
         }
-        ::Sleep(m_scroll_interval_ms);
+        ::Sleep(static_cast<int>(1.0 / m_frequency * 1000));
     }
     m_scrolling = false;
 }
+
+// Decelerate scroll
+void SmoothScroll::end_scroll()
+{}
 
 void SmoothScroll::scroll(double delta) const
 {
@@ -84,16 +103,6 @@ void SmoothScroll::scroll(double delta) const
     std::cout << "Scrolled " << delta << "\n";
 }
 
-void SmoothScroll::set_acceleration(double a)
-{
-    m_acceleration = a;
-}
-
-void SmoothScroll::set_max_speed(double max_speed)
-{
-    m_max_speed = max_speed;
-}
-
 void SmoothScroll::mark_time_start()
 {
     ::QueryPerformanceCounter(&m_timer_start);
@@ -103,5 +112,5 @@ double SmoothScroll::time_elapsed() const
 {
     LARGE_INTEGER time;
     ::QueryPerformanceCounter(&time);
-    return static_cast<double>(time.QuadPart - m_timer_start.QuadPart);
+    return static_cast<double>(time.QuadPart - m_timer_start.QuadPart) / m_timer_frequency.QuadPart;
 }
