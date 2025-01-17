@@ -20,7 +20,15 @@ namespace smoothing
     { return 1.0 - std::pow(1.0 - t, 3); }
 
     inline double
-    ease_in_out_sine(double t)
-    { return 1.0 - std::cos(pi * t) / 2; }
+    ease_in_sine(double t)
+    { return 1.0 - std::cos(pi * t / 2); }
     
+    inline double
+    ease_out_sine(double t)
+    { return std::sin((pi * t) / 2); }
+
+    inline double
+    ease_in_out_sine(double t)
+    { return (1.0 - std::cos(pi * t)) / 2; }
+
 } // namespace smoothing
