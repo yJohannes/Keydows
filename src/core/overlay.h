@@ -1,26 +1,19 @@
 #pragma once
 #include <windows.h>
+#include <unordered_map>
 #include <string>
 #include <iostream>
 
 #undef DOUBLE_CLICK
 
-#define QUIT_PROGRAM    VK_F4
-#define HIDE_OVERLAY    VK_ESCAPE
-#define REMOVE_INPUT    VK_BACK
-#define CLEAR_INPUTS    VK_RETURN
 
-#define M_MOVE_MOUSE      L'C'
-#define M_DOUBLE_CLICK    L'V'
-#define M_TRIPLE_CLICK    L'N'
-#define M_QUAD_CLICK      L'M'
 
 class Application;
 
 class Overlay
 {
 public:
-    enum InputType
+    enum class InputType
     {
         NO_INPUT,
         FIRST_INPUT,
@@ -48,6 +41,20 @@ private:
     HDC m_default_mem_dc;
     HBITMAP m_default_mem_bitmap;
 
+
+    enum Action
+    {
+        HIDE,
+        REMOVE_INPUT,
+        CLEAR_INPUTS,
+        MOVE_MOUSE,
+        DOUBLE_CLICK,
+        TRIPLE_CLICK,
+        QUAD_CLICK
+    };
+
+    std::unordered_map<Action, int> m_keybinds;
+
 public:
     Overlay();
     ~Overlay();
@@ -57,7 +64,7 @@ public:
     // Key Events
     bool CALLBACK keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
     bool CALLBACK mouse_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
-    int enter_input(wchar_t input_char);
+    InputType enter_input(wchar_t input_char);
     void undo_input();
     void clear_input();
 

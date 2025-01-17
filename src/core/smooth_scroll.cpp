@@ -7,12 +7,13 @@ SmoothScroll::SmoothScroll()
     , m_modifier_scale(2)
     , m_ease_in_time(0.2)
     , m_ease_out_time(0.1)
-    , m_activation_key(220)
-    , m_up_binding(VK_UP)
-    , m_down_binding(VK_DOWN)
-    , m_multiplier_binding(VK_RIGHT)
     , m_scrolling(false)
 {
+    m_keybinds[Action::ACTIVATE] = 220;
+    m_keybinds[Action::SCROLL_UP] = VK_UP;
+    m_keybinds[Action::SCROLL_DOWN] = VK_DOWN;
+    m_keybinds[Action::SLOW_SCROLL] = VK_LEFT;
+    m_keybinds[Action::FAST_SCROLL] = VK_RIGHT;
 }
 
 SmoothScroll::~SmoothScroll()
@@ -50,16 +51,16 @@ bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, L
 
     if (w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN)
     {
-        if (key == m_activation_key)
+        if (key == m_keybinds[Action::ACTIVATE])
         {
             m_activation_key_down = true;
             return true;
         }
 
-        if (m_activation_key_down && (key == m_up_binding || key == m_down_binding))
+        if (m_activation_key_down && (key == m_keybinds[Action::SCROLL_UP] || key == m_keybinds[Action::SCROLL_DOWN]))
         {
             held_key = key;
-            m_scroll_direction = (key == m_up_binding) ? 1 : -1;
+            m_scroll_direction = (key == m_keybinds[Action::SCROLL_UP]) ? 1 : -1;
             if (!m_scrolling)
             {
                 std::thread(&SmoothScroll::start_scroll, this).detach();
@@ -69,7 +70,7 @@ bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, L
     }
     else if (w_param == WM_KEYUP || w_param == WM_SYSKEYUP)
     {
-        if (key == m_activation_key)
+        if (key == m_keybinds[Action::ACTIVATE])
         {
             m_activation_key_down = false;
             return true;
@@ -90,14 +91,14 @@ void SmoothScroll::start_scroll()
     m_scrolling = true;
 
     LARGE_INTEGER t0;
-    Application::get_tick(t0);
+    timer::get_tick(t0);
 
     double dt, p, mul;
     while (m_scrolling)
     {
-        dt = Application::time_elapsed(t0);
+        dt = timer::time_elapsed(t0);
         p = std::clamp(dt / m_ease_in_time, 0.0, 1.0);
-        mul = Application::is_key_down(m_multiplier_binding) ? m_modifier_scale : (Application::is_key_down(VK_LEFT) ? 1.0 / m_modifier_scale : 1.0);
+        mul = Application::is_key_down(m_keybinds[Action::FAST_SCROLL]) ? m_modifier_scale : (Application::is_key_down(m_keybinds[Action::SLOW_SCROLL]) ? 1.0 / m_modifier_scale : 1.0);
 
         scroll(m_step_size * easing::ease_in_out_sine(p) * mul * m_scroll_direction);
 
@@ -115,10 +116,10 @@ void SmoothScroll::start_scroll()
 void SmoothScroll::end_scroll(double p0)
 {
     LARGE_INTEGER t0;
-    Application::get_tick(t0);
+    timer::get_tick(t0);
 
     double dt, p;
-    while ((dt = Application::time_elapsed(t0)) <= m_ease_out_time)
+    while ((dt = timer::time_elapsed(t0)) <= m_ease_out_time)
     {
         p = p0 * (1.0 - dt / m_ease_out_time);  // p ∈ [0, p0]
         scroll(m_step_size * easing::ease_out_sine(p) * m_scroll_direction);
