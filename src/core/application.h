@@ -8,7 +8,6 @@
 
 #include <iostream>
 #include <fstream>
-#include <functional>
 #include <thread>
 #include <vector>
 #include <unordered_map>
@@ -19,15 +18,9 @@ using json = nlohmann::json;
 
 #include "utils/hotkeys.h"
 #include "utils/timer.h"
+#include "managers/hook_manager.h"
 #include "overlay.h"
 #include "smooth_scroll.h"
-
-#define KEYBOARD 0
-#define MOUSE 1
-#define CREATE_LISTENER(listener) \
-    [this](int a, WPARAM b, LPARAM c) { return listener(a, b, c); }
-
-using HookListener = std::function<bool(int, WPARAM, LPARAM)>;
 
 /*
  * The Keydows overlay application. Uses low-level
@@ -39,11 +32,6 @@ public:
     static HWND h_wnd;
 private:
     static WNDCLASSEXW m_wcex;
-    static HHOOK m_keyboard_hook;
-    static HHOOK m_mouse_hook;
-
-    static std::unordered_map<int, HookListener> m_keyboard_listeners;
-    static std::unordered_map<int, HookListener> m_mouse_listeners;
 
     static std::unordered_map<int, int> m_hotkey_ids;
 
@@ -54,6 +42,8 @@ private:
         OVERLAY
     };
 
+    static HookManager m_hook_manager;
+
     static Overlay m_overlay;
     static SmoothScroll m_smooth_scroll;
 
@@ -63,13 +53,15 @@ public:
     static int run();
     static void shutdown();
 
-    static int register_listener(int hook_type, HookListener listener);
-    static void unregister_listener(int hook_type, int id);
+    static HookManager* hook_manager();
+
+    // static int register_listener(int hook_type, HookListener listener);
+    // static void unregister_listener(int hook_type, int id);
     
-    static void attach_hook(int hook_type);
-    static void detach_hook(int hook_type);
-    static void attach_hooks();
-    static void detach_hooks();
+    // static void attach_hook(int hook_type);
+    // static void detach_hook(int hook_type);
+    // static void attach_hooks();
+    // static void detach_hooks();
 
     static void repaint();
     static void show_window(bool show);
@@ -83,9 +75,6 @@ public:
 private:
     static void load_config();
     static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param);
-    static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
-    static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
-    static std::unordered_map<int, HookListener>* get_hook_listener_map(int hook_type);
 
     static void handle_hotkey(WPARAM w_param);
     static void paint_event();

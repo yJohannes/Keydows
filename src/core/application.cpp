@@ -3,11 +3,6 @@
 
 WNDCLASSEXW  Application::m_wcex;
 HWND Application::h_wnd = nullptr;
-HHOOK Application::m_keyboard_hook = nullptr;
-HHOOK Application::m_mouse_hook = nullptr;
-
-std::unordered_map<int, HookListener> Application::m_keyboard_listeners;
-std::unordered_map<int, HookListener> Application::m_mouse_listeners;
 
 Overlay Application::m_overlay;
 SmoothScroll Application::m_smooth_scroll;
@@ -38,7 +33,7 @@ Application::Application(HINSTANCE h_instance)
     );
     ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
 
-    hotkey::register_hotkey(h_wnd, Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, 'Q');
+    hotkey::register_hotkey(h_wnd, Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, L'Q');
     timer::initialize();
 
     load_config();
@@ -65,9 +60,7 @@ int Application::run()
 
 void Application::load_config()
 {
-
-    // std::ifstream config_file("../config.json");
-    std::ifstream config_file("config.json");
+    std::ifstream config_file("../config.json");
     
     if (!config_file.is_open())
     {
@@ -125,147 +118,24 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
     }
 }
 
-// Posts keyboard event messages for wnd_proc to process
-LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
-{
-    for (auto& listener : m_keyboard_listeners)
-    {
-        if (listener.second(n_code, w_param, l_param))
-        {
-            return 1;
-        }
-    }
-    // Pass the input to further receivers
-    return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
-}
-
-LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
-{
-    for (auto& listener : m_mouse_listeners)
-    {
-        if (listener.second(n_code, w_param, l_param))
-        {
-            return 1;
-        }
-    }
-
-    // Pass the input to further receivers
-    return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
-}
-
-std::unordered_map<int, HookListener>* Application::get_hook_listener_map(int hook_type)
-{
-    switch (hook_type) {
-    case KEYBOARD:
-        return &m_keyboard_listeners;
-    case MOUSE:
-        return &m_mouse_listeners;
-    default:
-        return nullptr;
-    }
-}
-
 void Application::shutdown()
 {
     detach_hooks();
-    hotkey::unregister_all_hotkeys(h_wnd);
-    ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
+    hotkey::unregister_key(h_wnd, QUIT);
+    hotkey::unregister_key(h_wnd, OVERLAY);
     ::PostQuitMessage(0);
 }
 
-int Application::register_listener(int hook_type, HookListener listener)
+HookManager *Application::hook_manager()
 {
-    auto* map = get_hook_listener_map(hook_type);
-    int id = 0;
-
-    for (const auto& kv : *map)
-    {
-        if (kv.first == id)
-            id++;
-        else
-            break;
-    }
-
-    attach_hook(hook_type);
-    (*map)[id] = listener;
-    std::cout << "Registered listener\n";
-    return id;
-}
-
-void Application::unregister_listener(int hook_type, int id)
-{
-    auto* map = get_hook_listener_map(hook_type);
-    map->erase(id);
-    std::cout << "Unregistered listener\n";
-
-    // If no hooks are in use
-    if (map->empty())
-    {
-        detach_hook(hook_type);
-    }
-}
-
-void Application::attach_hook(int hook_type)
-{
-    switch (hook_type) {
-    case KEYBOARD:
-        if (m_keyboard_hook != nullptr)
-            return;
-
-        m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
-        if (!m_keyboard_hook)
-        {
-            std::cerr << "Failed to install keyboard hook!" << std::endl;
-            ::MessageBox(NULL, L"Failed to install keyboard hook!", L"Error", MB_ICONERROR | MB_OK);
-        }
-        return;
-
-    case MOUSE:
-        if (m_mouse_hook != nullptr)
-            return;
-
-        m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
-        if (!m_mouse_hook)
-        {
-            std::cerr << "Failed to install mouse hook!" << std::endl;
-            ::MessageBox(NULL, L"Failed to install mouse hook!", L"Error", MB_ICONERROR | MB_OK);
-        }
-        return;
-    }
-}
-
-void Application::detach_hook(int hook_type)
-{
-    switch (hook_type) {
-    case KEYBOARD:
-        ::UnhookWindowsHookEx(m_keyboard_hook);
-        m_keyboard_hook = nullptr;
-        return;
-
-    case MOUSE:
-        ::UnhookWindowsHookEx(m_mouse_hook);
-        m_mouse_hook = nullptr;
-        return;
-    }
-}
-
-void Application::attach_hooks()
-{
-    attach_hook(KEYBOARD);
-    attach_hook(MOUSE);
-}
-
-void Application::detach_hooks()
-{
-    detach_hook(KEYBOARD);
-    detach_hook(MOUSE);
+    return &m_hook_manager;
 }
 
 void Application::handle_hotkey(WPARAM w_param)
 {
     switch (w_param) {
     case Hotkeys::QUIT:
-        shutdown();
+        ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
         break;
 
     case Hotkeys::OVERLAY:
