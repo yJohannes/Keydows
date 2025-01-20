@@ -17,13 +17,11 @@ class SmoothScroll
 private:
     double m_frequency;
     double m_step_size;
-    double m_modifier_scale;
+    double m_modifier_factor;
     double m_ease_in_time;
     double m_ease_out_time;
 
     std::atomic<bool> m_scrolling;
-    bool m_activation_key_down;
-    signed m_scroll_direction;
 
     enum class Action
     {
@@ -34,7 +32,7 @@ private:
         FAST_SCROLL
     };
 
-    std::unordered_map<Action, int> m_keybinds;
+    std::unordered_map<Action, int> m_keys;
     std::unordered_map<Action, bool> m_key_states;
 public:
     SmoothScroll();
@@ -46,7 +44,7 @@ public:
 
 private:
     void start_scroll();
-    void end_scroll(double p);
+    void end_scroll(double p0, double mod, signed dir);
 };
 
 // Test site
