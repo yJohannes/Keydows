@@ -38,6 +38,7 @@ Application::Application(HINSTANCE h_instance)
     );
     ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
 
+    hotkey::register_hotkey(h_wnd, Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, 'Q');
     timer::initialize();
 
     load_config();
@@ -64,14 +65,15 @@ int Application::run()
 
 void Application::load_config()
 {
-    std::ifstream config_file("../config.json");
-    // std::ifstream config_file("config.json");
+
+    // std::ifstream config_file("../config.json");
+    std::ifstream config_file("config.json");
     
     if (!config_file.is_open())
     {
         std::cerr << "Failed to open config.json" << std::endl;
-        hotkey::register_hotkey(h_wnd, Application::Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, 'Q');
         hotkey::register_hotkey(h_wnd, Application::Hotkeys::OVERLAY, MOD_CONTROL, VK_OEM_PERIOD);
+        m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
         m_overlay.set_resolution(24, 19);
         return;
     }
@@ -101,8 +103,6 @@ void Application::load_config()
         auto activate = hk.at("activate");
         hotkey::register_hotkey(h_wnd, Hotkeys::OVERLAY, activate.at("mod"), activate.at("key"));
     }
-
-    hotkey::register_hotkey(h_wnd, Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, 'Q');
 }
 
 LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)

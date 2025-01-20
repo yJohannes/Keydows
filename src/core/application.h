@@ -49,6 +49,7 @@ private:
 
     enum Hotkeys
     {
+        NO_USE,
         QUIT,
         OVERLAY
     };
