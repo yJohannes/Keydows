@@ -4,7 +4,6 @@ project(Keydows)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Recursively gather all source files in the 'src' directory
 file(GLOB_RECURSE SOURCES src/*.cpp)
 
 include_directories(
