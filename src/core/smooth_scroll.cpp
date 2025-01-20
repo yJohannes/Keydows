@@ -10,10 +10,10 @@ SmoothScroll::SmoothScroll()
     , m_scrolling(false)
 {
     m_keybinds[Action::ACTIVATE] = 220;
-    m_keybinds[Action::SCROLL_UP] = VK_UP;
-    m_keybinds[Action::SCROLL_DOWN] = VK_DOWN;
-    m_keybinds[Action::SLOW_SCROLL] = VK_LEFT;
-    m_keybinds[Action::FAST_SCROLL] = VK_RIGHT;
+    m_keybinds[Action::SCROLL_UP] = '1';
+    m_keybinds[Action::SCROLL_DOWN] = '2';
+    m_keybinds[Action::SLOW_SCROLL] = 'Z';
+    m_keybinds[Action::FAST_SCROLL] = 'X';
 }
 
 SmoothScroll::~SmoothScroll()
