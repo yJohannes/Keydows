@@ -2,7 +2,7 @@
 
 namespace hotkey
 {
-    unsigned int register_counter = 0;
+    unsigned int register_counter = 1;
 
     unsigned int register_hotkey(HWND h_wnd, int hk_id, int mod, int vk)
     {
@@ -33,6 +33,8 @@ namespace hotkey
         {
             unregister_key(h_wnd, hk_id);
         }
+
+        register_counter = 1;
     }
 
 } // namespace hotkey
