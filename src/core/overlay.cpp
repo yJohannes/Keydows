@@ -136,18 +136,17 @@ bool CALLBACK Overlay::keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM
         return true;
     }
 
+    auto& kb = m_keybinds;
+
     // Special keys
-    switch (key) {
-    case Action::HIDE:
+    if (key == kb[Action::HIDE]) {
         activate(false);
         return true;
-
-    case Action::REMOVE_INPUT:
+    } else if (key == kb[Action::REMOVE_INPUT]) {
         undo_input();
         Application::repaint();
-        return true;
-
-    case Action::CLEAR_INPUTS:
+        return true;        
+    } else if (key == kb[Action::CLEAR_INPUTS]) {
         clear_input();
         Application::repaint();
         return true;
