@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include "defines.h"
-#include "managers/hook_manager.h"
+#include "managers/ll_input.h"
 #include "utils/easing_functions.h"
 #include "utils/timer.h"
 
@@ -22,7 +22,7 @@ private:
 
     std::atomic<bool> m_scrolling;
 
-    enum class Action
+    enum Action
     {
         ACTIVATE,
         SCROLL_UP,

@@ -31,14 +31,14 @@ void SmoothScroll::activate(bool on)
 
     if (on)
     {
-        keyboard_id = HookManager::register_listener(
+        keyboard_id = LLInput::register_listener(
             WH_KEYBOARD_LL,
             CREATE_LISTENER(keyboard_hook_listener)
         );
     }
     else
     {
-        HookManager::unregister_listener(WH_KEYBOARD_LL, keyboard_id);
+        LLInput::unregister_listener(WH_KEYBOARD_LL, keyboard_id);
     }
 }
 
@@ -71,8 +71,7 @@ bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, L
     {
         m_key_states[action_id] = true;
 
-        // Block all keys in m_keys
-        if (m_key_states[Action::ACTIVATE])
+        if (LLInput::keys[m_keys[ACTIVATE]])
         {
             if (key == m_keys[Action::SCROLL_UP] || key == m_keys[Action::SCROLL_DOWN])
             {
