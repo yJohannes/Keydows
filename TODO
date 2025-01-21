@@ -1,4 +1,6 @@
-- Implement std::unordered_map<Action, bool> m_key_states;
+- BYTE buffer that a keyboard hook updates
+
+
 
 - Fix hotkey stuff
 - Make holding input key hold click and arrows move cursor
