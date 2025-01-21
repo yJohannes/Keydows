@@ -12,19 +12,6 @@ class Application;
 
 class Overlay
 {
-public:
-    enum class InputType
-    {
-        NO_INPUT,
-        FIRST_INPUT,
-        SECOND_INPUT,
-        MOVE_MOUSE,
-        CLICK,
-        DOUBLE_CLICK,
-        TRIPLE_CLICK,
-        QUAD_CLICK
-    };
-
 private:
     POINT m_click_pos;
     SIZE m_size;
@@ -64,7 +51,7 @@ public:
     // Key Events
     bool CALLBACK keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
     bool CALLBACK mouse_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
-    InputType enter_input(wchar_t input_char);
+    int enter_input(wchar_t input_char);
     void undo_input();
     void clear_input();
 
@@ -74,21 +61,19 @@ public:
     void set_charset(const wchar_t* charset);
     void set_click_direction_charset(const wchar_t* charset);
 
-    wchar_t input_1() const { return m_input_char_1; } 
-    wchar_t input_2() const { return m_input_char_2; } 
-
+private:
     // Helpers
     int get_char_index(wchar_t c) const;
     void char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out) const;
     void chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_out) const;
+    void apply_direction(wchar_t c, int* x, int* y) const;
     bool is_valid_coordinate(int x, int y) const { return x >= 0 && x < m_size.cx && y >= 0 && y < m_size.cy; }
     bool is_valid_char(wchar_t c) const { return (get_char_index(c) != -1); }
 
-private:
     // Render
     void render_overlay_bitmap(HDC h_dc);
     void delete_cached_default_overlay();
 
     // Key Events
-    void process_keydown(WPARAM key, LPARAM details);
+    void process_key(WPARAM key, LPARAM details);
 };

@@ -2,7 +2,6 @@
 #include "defines.h"
 #include "application.h"
 
-#pragma region PUBLIC
 Overlay::Overlay()
     : m_input_char_1(NULL_CHAR)
     , m_input_char_2(NULL_CHAR)
@@ -28,17 +27,16 @@ void Overlay::activate(bool on)
     static int keyboard_id;
     static int mouse_id;
 
-    std::cout << "Activate triggered with " << on << "\n";
     if (on)
     {
-        keyboard_id = Application::register_listener(
-            KEYBOARD,
+        keyboard_id = LLInput::register_listener(
+            WH_KEYBOARD_LL,
             CREATE_LISTENER(keyboard_hook_listener)
         );
 
-        mouse_id = Application::register_listener(
-            MOUSE,
-            CREATE_LISTENER(keyboard_hook_listener)
+        mouse_id = LLInput::register_listener(
+            WH_MOUSE_LL,
+            CREATE_LISTENER(mouse_hook_listener)
         );
 
         Application::show_window(true);
@@ -46,8 +44,8 @@ void Overlay::activate(bool on)
     else
     {
         clear_input();
-        Application::unregister_listener(KEYBOARD, keyboard_id);
-        Application::unregister_listener(MOUSE, mouse_id);
+        LLInput::unregister_listener(WH_KEYBOARD_LL, keyboard_id);
+        LLInput::unregister_listener(WH_MOUSE_LL, mouse_id);
         Application::show_window(false);
     }
 }
@@ -116,11 +114,12 @@ bool CALLBACK Overlay::keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM
         
     KBDLLHOOKSTRUCT* keydata = (KBDLLHOOKSTRUCT*)l_param;
     WPARAM key = keydata->vkCode;
-    LPARAM press_type = w_param; 
-
+    LPARAM press_type = w_param;
+    
+#ifdef OVERLAY_DEBUG
     std::cout << "VK pressed:  " << key << "\n";
     std::cout << "-> VK char:  " << (char)key << "\n";
-
+#endif
     // Allow certain mod keys to pass, shift for right click
     switch (key) {
     case VK_SHIFT:
@@ -156,7 +155,7 @@ bool CALLBACK Overlay::keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM
     switch (press_type) {
     case WM_KEYUP:
     case WM_SYSKEYUP:
-        process_keydown(key, l_param);
+        process_key(key, l_param);
         return true;
     }
     
@@ -176,8 +175,10 @@ bool CALLBACK Overlay::mouse_hook_listener(int n_code, WPARAM w_param, LPARAM l_
     return false;
 }
 
-// Expects capitalized letters 
-Overlay::InputType Overlay::enter_input(wchar_t c)
+/// @brief Expects capitalized letters
+/// @param input_char 
+/// @return number of clicks or -1 for moving mouse only
+int Overlay::enter_input(wchar_t c)
 {
     // Any third key will trigger (maybe change to a separate function?)
     if (m_input_char_1 && m_input_char_2)
@@ -188,25 +189,17 @@ Overlay::InputType Overlay::enter_input(wchar_t c)
 
         int x, y;
         char_ids_to_coordinates(id1, id2, &x, &y);
-
-        auto& d = m_click_direction_charset;
-
-        x -= m_block_width / 2 * (c == d[2] || c == d[4] || c == d[6]);
-        x += m_block_width / 2 * (c == d[3] || c == d[5] || c == d[7]);
-
-        y -= m_block_height / 2 * (c == d[0] || c == d[4] || c == d[5]);
-        y += m_block_height / 2 * (c == d[1] || c == d[6] || c == d[7]);
-
-        clear_input();
-
+        apply_direction(c, &x, &y);
         m_click_pos.x = x;
         m_click_pos.y = y;
 
-        if (c == Action::MOVE_MOUSE)   return InputType::MOVE_MOUSE;
-        if (c == Action::DOUBLE_CLICK) return InputType::DOUBLE_CLICK;
-        if (c == Action::TRIPLE_CLICK) return InputType::TRIPLE_CLICK;
-        if (c == Action::QUAD_CLICK)   return InputType::QUAD_CLICK;
-        return InputType::CLICK;
+        clear_input();
+
+        if (c == Action::MOVE_MOUSE)   return INT32_MAX;
+        if (c == Action::DOUBLE_CLICK) return 2;
+        if (c == Action::TRIPLE_CLICK) return 3;
+        if (c == Action::QUAD_CLICK)   return 4;
+        return 1;
     }
 
     // Finally log keystrokes
@@ -218,17 +211,17 @@ Overlay::InputType Overlay::enter_input(wchar_t c)
         if (m_input_char_1 == NULL_CHAR && get_char_index(c) < max_horizontal_index)
         {
             m_input_char_1 = c;
-            return InputType::FIRST_INPUT;
+            return -1;
         }
         
         if (m_input_char_2 == NULL_CHAR && get_char_index(c) < max_vertical_index)
         {
             m_input_char_2 = c;
-            return InputType::SECOND_INPUT;
+            return -2;
         }
     }
 
-    return InputType::NO_INPUT;
+    return 0;
 }
 
 void Overlay::undo_input()
@@ -302,8 +295,16 @@ void Overlay::chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_ou
     int id2 = get_char_index(c2);
     char_ids_to_coordinates(id1, id2, x_out, y_out);
 }
-#pragma endregion PUBLIC
-#pragma region PRIVATE
+
+void Overlay::apply_direction(wchar_t c, int *x, int *y) const
+{
+    auto& d = m_click_direction_charset;
+    x -= m_block_width / 2 * (c == d[2] || c == d[4] || c == d[6]);
+    x += m_block_width / 2 * (c == d[3] || c == d[5] || c == d[7]);
+
+    y -= m_block_height / 2 * (c == d[0] || c == d[4] || c == d[5]);
+    y += m_block_height / 2 * (c == d[1] || c == d[6] || c == d[7]);
+}
 
 void Overlay::render_overlay_bitmap(HDC h_dc)
 {
@@ -363,55 +364,44 @@ void Overlay::delete_cached_default_overlay()
 }
 
 // Key events
-void Overlay::process_keydown(WPARAM key, LPARAM details)
+void Overlay::process_key(WPARAM key, LPARAM details)
 {
     // Map input virtual key to actual key (fails for certain keys like öäå for some reason)
     wchar_t uni_key = key;  // Fail-safe
     {
+        UINT scan_code = (details >> 16) & 0xFF;
         BYTE kb_state[256];
         ::GetKeyboardState(kb_state);
         kb_state[VK_SHIFT] = 0;   // Remove shift
-
-        UINT scan_code = (details >> 16) & 0xFF;
 
         ::ToUnicode(key, scan_code, kb_state, &uni_key, 1, 0);
         uni_key = towupper(uni_key);
     }
 
+#ifdef OVERLAY_DEBUG
     std::cout << (char)uni_key << "\n";
-
-    InputType result = enter_input(uni_key);
-    switch (result)
+#endif
+    int result = enter_input(uni_key);
+    if (result == -1 || result == -2)
     {
-    case InputType::FIRST_INPUT:
-    case InputType::SECOND_INPUT:
-        Application::repaint();    // Force repaint to update highlights
-        return;
-    
-    case InputType::MOVE_MOUSE:
-        Application::move_cursor(m_click_pos.x, m_click_pos.y);
-        break;
 
-    case InputType::CLICK:
-        Application::click_async(1, m_click_pos.x, m_click_pos.y, Application::is_key_down(VK_SHIFT));
-        break;
-    
-    case InputType::DOUBLE_CLICK:
-        Application::click_async(2, m_click_pos.x, m_click_pos.y, Application::is_key_down(VK_SHIFT));
-        break;
-
-    case InputType::TRIPLE_CLICK:
-        Application::click_async(3, m_click_pos.x, m_click_pos.y, Application::is_key_down(VK_SHIFT));
-        break;
-
-    case InputType::QUAD_CLICK:
-        Application::click_async(4, m_click_pos.x, m_click_pos.y, Application::is_key_down(VK_SHIFT));
-        break;
-    case InputType::NO_INPUT:
-    default:
+        Application::repaint();  // Force repaint to update highlights
         return;
     }
 
-    activate(false);
+    if (result > 0)
+    {
+
+        Application::click_async(result, m_click_pos.x, m_click_pos.y, Application::is_key_down(VK_SHIFT));
+        activate(false);
+        return;
+    }
+
+    if (result == INT32_MAX)
+    {
+
+        Application::move_cursor(m_click_pos.x, m_click_pos.y);
+        activate(false);
+        return;
+    }
 }
-#pragma endregion PRIVATE
