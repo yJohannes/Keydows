@@ -3,47 +3,36 @@
 #include <iostream>
 #include <functional>
 
-#define KEYBOARD 0
-#define MOUSE 1
-// #define STATIC_WRAP(instance, func) \
-    (HOOKPROC)([instance](int a, WPARAM b, LPARAM c) -> LRESULT { instance->func(a, b, c); })
-
-// #define STATIC_WRAP(instance, func) \
-    (HOOKPROC)([instance](int code, WPARAM b, LPARAM c) -> LRESULT { return instance->func(code, b, c); })
-
+// #define HOOK_DEBUG
 
 #define CREATE_LISTENER(listener) \
-    [this](int a, WPARAM b, LPARAM c) { return listener(a, b, c); }
+    [this](int a, WPARAM b, LPARAM c) -> bool { return listener(a, b, c); }
 
-using HookListener = std::function<bool(int, WPARAM, LPARAM)>;
 
+// Manages low-level keyboard and mouse hooks.
 class HookManager
 {
-private:
-    HHOOK m_keyboard_hook = nullptr;
-    HHOOK m_mouse_hook = nullptr;
-
-    std::unordered_map<int, HookListener> m_keyboard_listeners;
-    std::unordered_map<int, HookListener> m_mouse_listeners;
 public:
-    void initialize();
-    int register_listener(int hook_type, HookListener listener);
-    void unregister_listener(int hook_type, int id);
+    using Listener = std::function<bool(int, WPARAM, LPARAM)>;
+private:
+    static HHOOK m_keyboard_hook;
+    static HHOOK m_mouse_hook;
 
-    void attach_hook(int hook_type);
-    void detach_hook(int hook_type);
-    void attach_hooks();
-    void detach_hooks();
+    static std::unordered_map<int, Listener> m_keyboard_listeners;
+    static std::unordered_map<int, Listener> m_mouse_listeners;
+public:
+    
+    static void initialize();
+    static int register_listener(int hook_type, Listener listener);
+    static void unregister_listener(int hook_type, int id);
+
+    static void attach_hook(int hook_type);
+    static void detach_hook(int hook_type);
+    static void attach_hooks();
+    static void detach_hooks();
 
 private:
-    LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
-    LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
-    std::unordered_map<int, HookListener>* get_hook_listener_map(int hook_type);
-
-    static LRESULT CALLBACK static_keyboard_proc(int nCode, WPARAM wParam, LPARAM lParam) {
-        if (instance) {
-            return instance->keyboard_proc(nCode, wParam, lParam);
-        }
-        return 0;
-    }
+    static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
+    static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
+    static std::unordered_map<int, Listener>* get_hook_listener_map(int hook_type);
 };

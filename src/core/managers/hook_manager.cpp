@@ -1,7 +1,16 @@
 #include "hook_manager.h"
 
+HHOOK HookManager::m_keyboard_hook = nullptr;
+HHOOK HookManager::m_mouse_hook = nullptr;
 
-int HookManager::register_listener(int hook_type, HookListener listener)
+std::unordered_map<int, HookManager::Listener> HookManager::m_keyboard_listeners;
+std::unordered_map<int, HookManager::Listener> HookManager::m_mouse_listeners;
+
+void HookManager::initialize()
+{
+}
+
+int HookManager::register_listener(int hook_type, Listener listener)
 {
     auto* map = get_hook_listener_map(hook_type);
     int id = 0;
@@ -16,15 +25,20 @@ int HookManager::register_listener(int hook_type, HookListener listener)
 
     attach_hook(hook_type);
     (*map)[id] = listener;
+#ifdef HOOK_DEBUG
     std::cout << "Registered listener\n";
+#endif
     return id;
+
 }
 
 void HookManager::unregister_listener(int hook_type, int id)
 {
     auto* map = get_hook_listener_map(hook_type);
     map->erase(id);
+#ifdef HOOK_DEBUG
     std::cout << "Unregistered listener\n";
+#endif
 
     // If no hooks are in use
     if (map->empty())
@@ -33,17 +47,13 @@ void HookManager::unregister_listener(int hook_type, int id)
     }
 }
 
-
+// Valid types are WH_KEYBOARD_LL and WH_MOUSE_LL
 void HookManager::attach_hook(int hook_type)
 {
-    static auto kb_proc = static_wrap(this, &HookManager::keyboard_proc);
-    static auto ms_proc = static_wrap(this, mouse_proc);
-
     switch (hook_type) {
-    case KEYBOARD:
+    case WH_KEYBOARD_LL:
         if (m_keyboard_hook != nullptr)
             return;
-        
 
         m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
         if (!m_keyboard_hook)
@@ -53,11 +63,11 @@ void HookManager::attach_hook(int hook_type)
         }
         return;
 
-    case MOUSE:
+    case WH_MOUSE_LL:
         if (m_mouse_hook != nullptr)
             return;
 
-        m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, ms_proc, NULL, 0);
+        m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
         if (!m_mouse_hook)
         {
             std::cerr << "Failed to install mouse hook!" << std::endl;
@@ -70,12 +80,12 @@ void HookManager::attach_hook(int hook_type)
 void HookManager::detach_hook(int hook_type)
 {
     switch (hook_type) {
-    case KEYBOARD:
+    case WH_KEYBOARD_LL:
         ::UnhookWindowsHookEx(m_keyboard_hook);
         m_keyboard_hook = nullptr;
         return;
 
-    case MOUSE:
+    case WH_MOUSE_LL:
         ::UnhookWindowsHookEx(m_mouse_hook);
         m_mouse_hook = nullptr;
         return;
@@ -84,14 +94,14 @@ void HookManager::detach_hook(int hook_type)
 
 void HookManager::attach_hooks()
 {
-    attach_hook(KEYBOARD);
-    attach_hook(MOUSE);
+    attach_hook(WH_KEYBOARD_LL);
+    attach_hook(WH_MOUSE_LL);
 }
 
 void HookManager::detach_hooks()
 {
-    detach_hook(KEYBOARD);
-    detach_hook(MOUSE);
+    detach_hook(WH_KEYBOARD_LL);
+    detach_hook(WH_MOUSE_LL);
 }
 
 LRESULT CALLBACK HookManager::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
@@ -121,12 +131,12 @@ LRESULT CALLBACK HookManager::mouse_proc(int n_code, WPARAM w_param, LPARAM l_pa
     return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
 }
 
-std::unordered_map<int, HookListener> *HookManager::get_hook_listener_map(int hook_type)
+std::unordered_map<int, HookManager::Listener> *HookManager::get_hook_listener_map(int hook_type)
 {
     switch (hook_type) {
-    case KEYBOARD:
+    case WH_KEYBOARD_LL:
         return &m_keyboard_listeners;
-    case MOUSE:
+    case WH_MOUSE_LL:
         return &m_mouse_listeners;
     default:
         return nullptr;
