@@ -1,17 +1,16 @@
 #pragma once
 
 #include <windows.h>
+#include <algorithm>
 #include <thread>
 #include <atomic>
 #include <unordered_map>
 
 #include "defines.h"
+#include "managers/hook_manager.h"
 #include "utils/easing_functions.h"
 #include "utils/timer.h"
 
-class Application;
-
-// Accelerated scrolling with smooth scroll.
 class SmoothScroll
 {
 private:

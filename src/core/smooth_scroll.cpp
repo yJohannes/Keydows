@@ -1,5 +1,4 @@
 #include "smooth_scroll.h"
-#include "application.h"
 
 SmoothScroll::SmoothScroll()
     : m_frequency(144)
@@ -32,14 +31,14 @@ void SmoothScroll::activate(bool on)
 
     if (on)
     {
-        keyboard_id = Application::register_listener(
-            KEYBOARD,
+        keyboard_id = HookManager::register_listener(
+            WH_KEYBOARD_LL,
             CREATE_LISTENER(keyboard_hook_listener)
         );
     }
     else
     {
-        Application::unregister_listener(KEYBOARD, keyboard_id);
+        HookManager::unregister_listener(WH_KEYBOARD_LL, keyboard_id);
     }
 }
 
@@ -125,7 +124,6 @@ void SmoothScroll::start_scroll()
     end_scroll(p, mod, dir);
 }
 
-/// Decelerate scroll
 /// @brief 
 /// @param p0: initial percentage of max scroll speed 
 /// @param mod: modifier that the scroll is scaled by
