@@ -18,9 +18,11 @@ using json = nlohmann::json;
 
 #include "utils/hotkeys.h"
 #include "utils/timer.h"
-#include "managers/hook_manager.h"
+#include "managers/ll_input.h"
 #include "overlay.h"
 #include "smooth_scroll.h"
+
+// #define OVERLAY_DEBUG
 
 /*
  * The Keydows overlay application. Uses low-level

@@ -120,7 +120,7 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
 
 void Application::shutdown()
 {
-    HookManager::detach_hooks();
+    LLInput::detach_hooks();
     hotkey::unregister_key(h_wnd, QUIT);
     hotkey::unregister_key(h_wnd, OVERLAY);
     ::PostQuitMessage(0);
