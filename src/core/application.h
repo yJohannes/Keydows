@@ -28,9 +28,8 @@ using json = nlohmann::json;
  */
 class Application
 {
-public:
-    static HWND h_wnd;
 private:
+    static HWND h_wnd;
     static WNDCLASSEXW m_wcex;
 
     static std::unordered_map<int, int> m_hotkey_ids;
@@ -42,8 +41,6 @@ private:
         OVERLAY
     };
 
-    static HookManager m_hook_manager;
-
     static Overlay m_overlay;
     static SmoothScroll m_smooth_scroll;
 
@@ -52,16 +49,6 @@ public:
     ~Application();
     static int run();
     static void shutdown();
-
-    static HookManager* hook_manager();
-
-    // static int register_listener(int hook_type, HookListener listener);
-    // static void unregister_listener(int hook_type, int id);
-    
-    // static void attach_hook(int hook_type);
-    // static void detach_hook(int hook_type);
-    // static void attach_hooks();
-    // static void detach_hooks();
 
     static void repaint();
     static void show_window(bool show);

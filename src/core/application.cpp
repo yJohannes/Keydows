@@ -120,15 +120,10 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
 
 void Application::shutdown()
 {
-    detach_hooks();
+    HookManager::detach_hooks();
     hotkey::unregister_key(h_wnd, QUIT);
     hotkey::unregister_key(h_wnd, OVERLAY);
     ::PostQuitMessage(0);
-}
-
-HookManager *Application::hook_manager()
-{
-    return &m_hook_manager;
 }
 
 void Application::handle_hotkey(WPARAM w_param)
