@@ -1,6 +1,7 @@
-- BYTE buffer that a keyboard hook updates
+x BYTE buffer that a keyboard hook updates
+- Use that instead of manual storin ^^^^
 
-
+- Block n_code from LRESULT CALLBACK LowLevelInput::keyboard_proc if negative
 
 - Fix hotkey stuff
 - Make holding input key hold click and arrows move cursor
