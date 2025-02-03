@@ -2,14 +2,19 @@
 
 #include <windows.h>
 #include <algorithm>
+#include <chrono>
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 #include <unordered_map>
 
 #include "defines.h"
 #include "managers/ll_input.h"
 #include "utils/easing_functions.h"
 #include "utils/timer.h"
+
+// #define SCROLL_DEBUG
 
 class SmoothScroll
 {
@@ -21,6 +26,9 @@ private:
     double m_ease_out_time;
 
     std::atomic<bool> m_scrolling;
+    std::mutex m_scroll_mutex;
+    std::condition_variable m_scroll_cv;
+
 
     enum Action
     {
@@ -32,13 +40,12 @@ private:
     };
 
     std::unordered_map<Action, int> m_keys;
-    std::unordered_map<Action, bool> m_key_states;
 public:
     SmoothScroll();
     ~SmoothScroll();
     
     void activate(bool on);
-    bool CALLBACK keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
+    bool CALLBACK keyboard_hook_listener(WPARAM w_param, LPARAM l_param);
     void scroll(double delta) const;
 
 private:

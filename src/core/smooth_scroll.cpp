@@ -8,17 +8,11 @@ SmoothScroll::SmoothScroll()
     , m_ease_out_time(0.1)
     , m_scrolling(false)
 {
-    m_keys[Action::ACTIVATE] = 220;
-    m_keys[Action::SCROLL_UP] = '1';
-    m_keys[Action::SCROLL_DOWN] = '2';
-    m_keys[Action::SLOW_SCROLL] = 'Z';
-    m_keys[Action::FAST_SCROLL] = 'X';
-
-    m_key_states[Action::ACTIVATE] = 0;
-    m_key_states[Action::SCROLL_UP] = 0;
-    m_key_states[Action::SCROLL_DOWN] = 0;
-    m_key_states[Action::SLOW_SCROLL] = 0;
-    m_key_states[Action::FAST_SCROLL] = 0;
+    m_keys[ACTIVATE] = 220;
+    m_keys[SCROLL_UP] = '1';
+    m_keys[SCROLL_DOWN] = '2';
+    m_keys[SLOW_SCROLL] = 'Z';
+    m_keys[FAST_SCROLL] = 'X';
 }
 
 SmoothScroll::~SmoothScroll()
@@ -42,22 +36,19 @@ void SmoothScroll::activate(bool on)
     }
 }
 
-bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param)
+bool CALLBACK SmoothScroll::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
 {
-    if (n_code < 0)
-        return false;
-
     KBDLLHOOKSTRUCT* keydata = reinterpret_cast<KBDLLHOOKSTRUCT*>(l_param);
     WPARAM key = keydata->vkCode;
 
+    static int counter = 0;
+
     // Check is key is valid and save the enum
-    Action action_id;
     bool valid_key = false;
     for (const auto& pair : m_keys)
     {
         if (pair.second == key)
         {
-            action_id = pair.first;
             valid_key = true;
             break;
         }
@@ -66,19 +57,16 @@ bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, L
     if (!valid_key)
         return false;
 
-    static int held_key = -1;
     if (w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN)
     {
-        m_key_states[action_id] = true;
-
-        if (LLInput::keys[m_keys[ACTIVATE]])
+        if (LLInput::keydown(m_keys[ACTIVATE]))
         {
-            if (key == m_keys[Action::SCROLL_UP] || key == m_keys[Action::SCROLL_DOWN])
+            if (key == m_keys[SCROLL_UP] || key == m_keys[SCROLL_DOWN])
             {
-                held_key = key;
                 if (!m_scrolling)
                 {
                     m_scrolling = true;
+                    std::cout << "Thread Started: " << counter++ << "\n";
                     std::thread(&SmoothScroll::start_scroll, this).detach();
                 }
             }
@@ -87,14 +75,20 @@ bool CALLBACK SmoothScroll::keyboard_hook_listener(int n_code, WPARAM w_param, L
     }
     else if (w_param == WM_KEYUP || w_param == WM_SYSKEYUP)
     {
-        // Log key as released
-        m_key_states[action_id] = false;
-
-        if (key == held_key)
+        if (key == m_keys[SCROLL_UP] || key == m_keys[SCROLL_DOWN])
         {
             m_scrolling = false;
             return true;
         }
+        // if (!(LLInput::keydown(m_keys[SCROLL_UP]) || LLInput::keydown(m_keys[SCROLL_DOWN])))
+        // {
+        //     // If both down only then set scrolling to false, could be done with the scrolling bool as well
+        //     if (!(LLInput::keydown(m_keys[SCROLL_UP]) && LLInput::keydown(m_keys[SCROLL_DOWN])))
+        //     {
+        //         m_scrolling = false;
+        //     }
+        //     return true;
+        // }
     }
     return false;
 }
@@ -106,19 +100,35 @@ void SmoothScroll::start_scroll()
 
     double dt, p, mod;
     signed dir;
+
+    const auto scroll_interval = std::chrono::milliseconds(static_cast<int>(1.0 / m_frequency * 1000));
+    auto next_tick = std::chrono::steady_clock::now();
+
     while (m_scrolling)
     {
+        {
+            std::unique_lock<std::mutex> lock(m_scroll_mutex);
+            if (!m_scrolling) break;
+            m_scroll_cv.wait_until(lock, next_tick, [&]() { return !m_scrolling; });
+
+        }
+
+        if (!m_scrolling) break;
+
         dt = timer::time_elapsed(t0);
-        p = std::clamp(dt / m_ease_in_time, 0.0, 1.0);
-        mod = m_key_states[Action::FAST_SCROLL] ? m_modifier_factor : (m_key_states[Action::SLOW_SCROLL] ? 1.0 / m_modifier_factor : 1.0);
-        dir = m_key_states[Action::SCROLL_UP] ? 1 : -1;
+        p = std::min(dt / m_ease_in_time, 1.0);
+        mod = LLInput::keydown(m_keys[FAST_SCROLL]) ? m_modifier_factor : (LLInput::keydown(m_keys[SLOW_SCROLL]) ? 1.0 / m_modifier_factor : 1.0);
+        dir = LLInput::keydown(m_keys[SCROLL_UP]) ? 1 : -1;
         
         scroll(m_step_size * easing::ease_in_out_sine(p) * mod * dir);
-        if (!m_scrolling)
-        {
-            break;
-        }
-        ::Sleep(static_cast<int>(1.0 / m_frequency * 1000));
+        next_tick += scroll_interval;
+
+        // if (!m_scrolling)
+        // {
+        //     break;
+        // }
+
+        // ::Sleep(static_cast<int>(1.0 / m_frequency * 1000));
     }
     end_scroll(p, mod, dir);
 }
@@ -129,21 +139,53 @@ void SmoothScroll::start_scroll()
 /// @param dir: scroll direction: 1 = up, -1 = down 
 void SmoothScroll::end_scroll(double p0, double mod, signed dir)
 {
-    LARGE_INTEGER t0;
-    timer::get_tick(t0);
+
+    auto t0 = std::chrono::steady_clock::now();
+
+    const auto ease_out_duration = std::chrono::duration<double>(m_ease_out_time);
 
     double dt, p;
-    while ((dt = timer::time_elapsed(t0)) <= m_ease_out_time)
+    while (true)
     {
-        p = p0 * (1.0 - dt / m_ease_out_time);  // p ∈ [0, p0]
-        // p = p0 - dt / m_ease_out_time; // Scale dt / t_e by 1 / p0
-        scroll(m_step_size * easing::ease_out_sine(p) * mod * dir);
-        if (m_scrolling) // Halt if started scrolling again
+        dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+
+        if (dt > m_ease_out_time)
         {
             break;
         }
-        ::Sleep(static_cast<int>(1.0 / m_frequency * 1000));
+
+        // p = p0 * (1.0 - dt / m_ease_out_time);  // p ∈ [0, p0]
+        // scroll(m_step_size * easing::ease_out_sine(p) * mod * dir);  // Perform the scroll
+
+        // if (m_scrolling) {
+        //     break;  // Exit if scrolling has been re-activated
+        // }
+
+        // // Sleep until the next frame in the animation, using chrono for better timing
+        // auto sleep_duration = std::chrono::milliseconds(static_cast<int>(1000.0 / m_frequency));
+        // std::this_thread::sleep_for(sleep_duration);  // Sleep for the calculated duration
+
+
     }
+
+    // LARGE_INTEGER t0;
+    // timer::get_tick(t0);
+
+    // double dt, p;
+    // while ((dt = timer::time_elapsed(t0)) <= m_ease_out_time)
+    // {
+
+
+    //     p = p0 * (1.0 - dt / m_ease_out_time);  // p ∈ [0, p0]
+    //     scroll(m_step_size * easing::ease_out_sine(p) * mod * dir);
+    //     if (m_scrolling) // Halt if started scrolling again
+    //     {
+    //         break;
+    //     }
+    //     ::Sleep(static_cast<int>(1.0 / m_frequency * 1000));
+    // }
+
+    std::cout << "Thread Killed\n";
 }
 
 void SmoothScroll::scroll(double delta) const
@@ -155,6 +197,9 @@ void SmoothScroll::scroll(double delta) const
     input.mi.dwFlags = (d > 0) ? MOUSEEVENTF_WHEEL : MOUSEEVENTF_WHEEL;
     input.mi.mouseData = d;
 
-    SendInput(1, &input, sizeof(INPUT));
+    ::SendInput(1, &input, sizeof(INPUT));
+
+#ifdef SCROLL_DEBUG
     std::cout << "Scrolled:    " << delta << "\n";
+#endif
 }
