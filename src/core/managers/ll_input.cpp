@@ -12,6 +12,11 @@ void LLInput::initialize()
 {
 }
 
+
+/// @brief Register a listener to a hook.
+/// @param hook_type 
+/// @param listener 
+/// @return listener ID
 int LLInput::register_listener(int hook_type, Listener listener)
 {
     auto* map = get_hook_listener_map(hook_type);
@@ -108,6 +113,11 @@ void LLInput::detach_hooks()
 
 LRESULT CALLBACK LLInput::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
+    if (n_code < 0)
+    {
+        return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
+    }
+
     KBDLLHOOKSTRUCT* keydata = (KBDLLHOOKSTRUCT*)l_param;
     WPARAM key = keydata->vkCode;
 
@@ -121,11 +131,10 @@ LRESULT CALLBACK LLInput::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_par
         keys[key] = 0;
         break;
     }
-    std::cout << key << " KEY << \n";
 
     for (auto& listener : m_keyboard_listeners)
     {
-        if (listener.second(n_code, w_param, l_param))
+        if (listener.second(w_param, l_param))
         {
             return 1;
         }
@@ -136,9 +145,12 @@ LRESULT CALLBACK LLInput::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_par
 
 LRESULT CALLBACK LLInput::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
+    if (n_code < 0)
+        return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
+
     for (auto& listener : m_mouse_listeners)
     {
-        if (listener.second(n_code, w_param, l_param))
+        if (listener.second(w_param, l_param))
         {
             return 1;
         }
