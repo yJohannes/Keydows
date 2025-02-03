@@ -105,13 +105,10 @@ void Overlay::render(HWND h_wnd)
 
 // Returns bool whether to block the key input for further receivers
 // (overlay processes the input)
-bool CALLBACK Overlay::keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param)
+bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
 {
     // w_param contains event type
-    // l_param contains event data
-    if (n_code < 0)
-        return false;
-        
+    // l_param contains event data        
     KBDLLHOOKSTRUCT* keydata = (KBDLLHOOKSTRUCT*)l_param;
     WPARAM key = keydata->vkCode;
     LPARAM press_type = w_param;
@@ -163,15 +160,13 @@ bool CALLBACK Overlay::keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM
 }
 
 // Make determine whether click was synthetic or no
-bool CALLBACK Overlay::mouse_hook_listener(int n_code, WPARAM w_param, LPARAM l_param)
+bool CALLBACK Overlay::mouse_hook_listener(WPARAM w_param, LPARAM l_param)
 {
-    if (n_code == HC_ACTION)
+    if (w_param == WM_LBUTTONDOWN || w_param == WM_RBUTTONDOWN)
     {
-        if ((w_param == WM_LBUTTONDOWN) || (w_param == WM_RBUTTONDOWN))
-        {
-            activate(false);
-        }
+        activate(false);
     }
+
     return false;
 }
 
@@ -389,6 +384,14 @@ void Overlay::process_key(WPARAM key, LPARAM details)
         return;
     }
 
+    if (result == INT32_MAX)
+    {
+
+        Application::move_cursor(m_click_pos.x, m_click_pos.y);
+        activate(false);
+        return;
+    }
+
     if (result > 0)
     {
 
@@ -397,11 +400,4 @@ void Overlay::process_key(WPARAM key, LPARAM details)
         return;
     }
 
-    if (result == INT32_MAX)
-    {
-
-        Application::move_cursor(m_click_pos.x, m_click_pos.y);
-        activate(false);
-        return;
-    }
 }

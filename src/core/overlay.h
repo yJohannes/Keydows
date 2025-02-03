@@ -6,7 +6,7 @@
 
 #undef DOUBLE_CLICK
 
-
+#define OVERLAY_DEBUG
 
 class Application;
 
@@ -28,7 +28,6 @@ private:
     HDC m_default_mem_dc;
     HBITMAP m_default_mem_bitmap;
 
-
     enum Action
     {
         HIDE,
@@ -49,8 +48,8 @@ public:
     void render(HWND h_wnd);
 
     // Key Events
-    bool CALLBACK keyboard_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
-    bool CALLBACK mouse_hook_listener(int n_code, WPARAM w_param, LPARAM l_param);
+    bool CALLBACK keyboard_hook_listener(WPARAM w_param, LPARAM l_param);
+    bool CALLBACK mouse_hook_listener(WPARAM w_param, LPARAM l_param);
     int enter_input(wchar_t input_char);
     void undo_input();
     void clear_input();
