@@ -14,8 +14,6 @@
 #include "utils/easing_functions.h"
 #include "utils/timer.h"
 
-// #define SCROLL_DEBUG
-
 class SmoothScroll
 {
 private:
@@ -25,6 +23,7 @@ private:
     double m_ease_in_time;
     double m_ease_out_time;
 
+    bool m_thread_active = false;
     std::atomic<bool> m_scrolling;
     std::mutex m_scroll_mutex;
     std::condition_variable m_scroll_cv;
