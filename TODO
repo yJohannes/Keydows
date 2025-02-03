@@ -1,12 +1,9 @@
-x BYTE buffer that a keyboard hook updates
-- Use that instead of manual storin ^^^^
-
-- Block n_code from LRESULT CALLBACK LowLevelInput::keyboard_proc if negative
+- Use VK instead of wchars 
+- Move click and scroll to ll_input?
 
 - Fix hotkey stuff
 - Make holding input key hold click and arrows move cursor
 - Let hotkey mod keys pass the hook  
-- Accept VK codes instead of wchars (maybe?)
 - Adjustable alpha for text (after everything else)
 - GUI
 
