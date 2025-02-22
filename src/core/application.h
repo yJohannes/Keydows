@@ -19,8 +19,10 @@ using json = nlohmann::json;
 #include "utils/hotkeys.h"
 #include "utils/timer.h"
 #include "managers/ll_input.h"
-#include "overlay.h"
-#include "smooth_scroll.h"
+
+// TO BE REMOVED WITH DLL PLUGIN
+#include "tools/overlay.h"
+#include "tools/smooth_scroll.h"
 
 // #define OVERLAY_DEBUG
 
