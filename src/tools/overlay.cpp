@@ -1,6 +1,6 @@
 #include "overlay.h"
 #include "defines.h"
-#include "application.h"
+#include "core/application.h"
 
 Overlay::Overlay()
     : m_input_char_1(NULL_CHAR)
