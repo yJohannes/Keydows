@@ -1,5 +1,7 @@
 #include "defines.h"
 #include <windows.h>
+
+#define BUILD_CORE  // Enables __declspec(dllexport)
 #include "core/application.h"
 
 int APIENTRY WinMain(
@@ -14,6 +16,6 @@ int APIENTRY WinMain(
         ::SetProcessDPIAware();
     #endif
 
-    Application app(h_instance);
+    CoreApplication app(h_instance);
     return app.run();
 }

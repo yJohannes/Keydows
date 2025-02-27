@@ -8,6 +8,13 @@ Overlay::Overlay()
     , m_default_mem_dc(nullptr)
     , m_default_mem_bitmap(nullptr)
 {
+    DEVMODE dm;
+    dm.dmSize = sizeof(dm);
+    EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
+
+    set_size(dm.dmPelsWidth, dm.dmPelsHeight);
+    set_resolution(24, 18);
+
     m_keybinds[Action::HIDE] = VK_ESCAPE;
     m_keybinds[Action::REMOVE_INPUT] = VK_BACK;
     m_keybinds[Action::CLEAR_INPUTS] = VK_RETURN;
@@ -15,6 +22,23 @@ Overlay::Overlay()
     m_keybinds[Action::DOUBLE_CLICK] = L'V';
     m_keybinds[Action::TRIPLE_CLICK] = L'N';
     m_keybinds[Action::QUAD_CLICK]   = L'M';
+
+    //  HotkeyManager::register_hotkey(CoreApplication::get_hwnd(), MOD_CONTROL, VK_OEM_PERIOD);
+
+    m_hwnd = ::CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
+        L"Keydows",
+        L"Keydows Overlay Window",
+        WS_POPUP | WS_VISIBLE,
+        0, 0,
+        dm.dmPelsWidth, dm.dmPelsHeight,
+        NULL, NULL,
+        GetModuleHandle(NULL),
+        this
+    );
+    ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
+
+
 }
 
 Overlay::~Overlay()
@@ -39,14 +63,14 @@ void Overlay::activate(bool on)
             CREATE_LISTENER(mouse_hook_listener)
         );
 
-        Application::show_window(true);
+        CoreApplication::show_window(true);
     }
     else
     {
         clear_input();
         LLInput::unregister_listener(WH_KEYBOARD_LL, keyboard_id);
         LLInput::unregister_listener(WH_MOUSE_LL, mouse_id);
-        Application::show_window(false);
+        CoreApplication::show_window(false);
     }
 }
 
@@ -140,11 +164,11 @@ bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
         return true;
     } else if (key == kb[Action::REMOVE_INPUT]) {
         undo_input();
-        Application::repaint();
+        CoreApplication::repaint();
         return true;        
     } else if (key == kb[Action::CLEAR_INPUTS]) {
         clear_input();
-        Application::repaint();
+        CoreApplication::repaint();
         return true;
     }
 
@@ -190,10 +214,10 @@ int Overlay::enter_input(wchar_t c)
 
         clear_input();
 
-        if (c == Action::MOVE_MOUSE)   return INT32_MAX;
-        if (c == Action::DOUBLE_CLICK) return 2;
-        if (c == Action::TRIPLE_CLICK) return 3;
-        if (c == Action::QUAD_CLICK)   return 4;
+        if (c == m_keybinds[Action::MOVE_MOUSE])   return INT32_MAX;
+        if (c == m_keybinds[Action::DOUBLE_CLICK]) return 2;
+        if (c == m_keybinds[Action::TRIPLE_CLICK]) return 3;
+        if (c == m_keybinds[Action::QUAD_CLICK])   return 4;
         return 1;
     }
 
@@ -380,22 +404,21 @@ void Overlay::process_key(WPARAM key, LPARAM details)
     if (result == -1 || result == -2)
     {
 
-        Application::repaint();  // Force repaint to update highlights
+        CoreApplication::repaint();  // Force repaint to update highlights
         return;
     }
 
     if (result == INT32_MAX)
     {
 
-        Application::move_cursor(m_click_pos.x, m_click_pos.y);
+        HLInput::move_cursor(m_click_pos.x, m_click_pos.y);
         activate(false);
         return;
     }
 
     if (result > 0)
     {
-
-        Application::click_async(result, m_click_pos.x, m_click_pos.y, Application::is_key_down(VK_SHIFT));
+        HLInput::click_async(result, m_click_pos.x, m_click_pos.y, HLInput::is_key_down(VK_SHIFT));
         activate(false);
         return;
     }

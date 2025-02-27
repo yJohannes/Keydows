@@ -10,7 +10,9 @@
 #include <unordered_map>
 
 #include "defines.h"
-#include "managers/ll_input.h"
+// #include "core/application.h"
+#include "core/input/ll_input.h"
+#include "core/input/hl_input.h"
 #include "utils/easing_functions.h"
 #include "utils/timer.h"
 

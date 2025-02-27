@@ -1,18 +1,23 @@
-#pragma once
+#ifndef OVERLAY_H
+#define OVERLAY_H
+
 #include <windows.h>
+#undef DOUBLE_CLICK
+
 #include <unordered_map>
 #include <string>
 #include <iostream>
-
-#undef DOUBLE_CLICK
-
+#include "core/hotkeys/hotkey_manager.h"
+#include "core/input/hl_input.h"
 #define OVERLAY_DEBUG
 
-class Application;
+class CoreApplication;
 
 class Overlay
 {
 private:
+    HWND m_hwnd;
+
     POINT m_click_pos;
     SIZE m_size;
     SIZE m_resolution;
@@ -76,3 +81,5 @@ private:
     // Key Events
     void process_key(WPARAM key, LPARAM details);
 };
+
+#endif // OVERLAY_H

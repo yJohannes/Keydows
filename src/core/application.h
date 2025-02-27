@@ -1,6 +1,7 @@
 // https://stackoverflow.com/questions/29091028/windows-api-write-to-screen-as-on-screen-display
 // https://forums.unrealengine.com/t/how-do-i-include-winuser-h-identifier-wm_touch-is-undefined-dword-is-ambiguous/69946/5
 #pragma once
+
 #include "defines.h"
 #include <SDKDDKVer.h>
 #include <windows.h>
@@ -18,19 +19,13 @@ using json = nlohmann::json;
 
 #include "utils/hotkeys.h"
 #include "utils/timer.h"
-#include "managers/ll_input.h"
+#include "input/ll_input.h"
+#include "input/hl_input.h"
 
-// TO BE REMOVED WITH DLL PLUGIN
 #include "tools/overlay.h"
 #include "tools/smooth_scroll.h"
 
-// #define OVERLAY_DEBUG
-
-/*
- * The Keydows overlay application. Uses low-level
- * mouse and keyboard hooks to catch keystrokes.
- */
-class Application
+class CoreApplication
 {
 private:
     static HWND h_wnd;
@@ -49,19 +44,15 @@ private:
     static SmoothScroll m_smooth_scroll;
 
 public:
-    Application(HINSTANCE h_instance);
-    ~Application();
+    CoreApplication(HINSTANCE h_instance);
+    ~CoreApplication();
     static int run();
     static void shutdown();
 
     static void repaint();
     static void show_window(bool show);
 
-    static void move_cursor(int x, int y);
-    static void click(int n, int x, int y, bool right_click);
-    static void click_async(int n, int x, int y, bool right_click);
-    static void release_key(int vk_code);
-    static bool is_key_down(int vk_code);
+    static HWND get_hwnd() { return h_wnd; }
 
 private:
     static void load_config();
