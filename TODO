@@ -1,6 +1,8 @@
 - Use VK instead of wchars 
 - Move click and scroll to ll_input?
 
+- Add something like get_monitor_resolution
+
 - Fix hotkey stuff
 - Make holding input key hold click and arrows move cursor
 - Let hotkey mod keys pass the hook  
