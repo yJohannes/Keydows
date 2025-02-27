@@ -7,7 +7,7 @@ class ITool
 {
 public:
     virtual ~ITool() = default;
-    virtual void execute() = 0;
+    virtual void activate(bool b) = 0;
 };
 
 // Factory function to create an instance of a tool
