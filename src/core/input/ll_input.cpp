@@ -12,11 +12,6 @@ void LLInput::initialize()
 {
 }
 
-
-/// @brief Register a listener to a hook.
-/// @param hook_type 
-/// @param listener 
-/// @return listener ID
 int LLInput::register_listener(int hook_type, Listener listener)
 {
     auto* map = get_hook_listener_map(hook_type);
@@ -160,7 +155,7 @@ LRESULT CALLBACK LLInput::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
     return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
 }
 
-std::unordered_map<int, LLInput::Listener> *LLInput::get_hook_listener_map(int hook_type)
+std::unordered_map<int, LLInput::Listener>* LLInput::get_hook_listener_map(int hook_type)
 {
     switch (hook_type) {
     case WH_KEYBOARD_LL:

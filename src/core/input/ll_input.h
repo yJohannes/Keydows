@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <iostream>
 #include <functional>
+#include <unordered_map>
 
 // #define HOOK_DEBUG
 
@@ -22,6 +23,12 @@ private:
     static std::unordered_map<int, Listener> m_mouse_listeners;
 public:
     static void initialize();
+
+    /// @brief Register a listener to a hook.
+    /// @param hook_type WH_KEYBOARD_LL or WH_MOUSE_LL 
+    /// @param listener Callback function
+    /// @return listener ID
+    [[nodiscard]]
     static int register_listener(int hook_type, Listener listener);
     static void unregister_listener(int hook_type, int id);
     static void attach_hook(int hook_type);
