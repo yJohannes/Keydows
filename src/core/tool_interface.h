@@ -1,16 +1,22 @@
 #ifndef TOOL_INTERFACE_H
 #define TOOL_INTERFACE_H
 
-// g++ -shared -o ToolA.dll ToolA.cpp
+#ifdef BUILD_DLL
+    #define EXPORT_API __declspec(dllexport)
+#else
+    #define EXPORT_API __declspec(dllimport)
+#endif
 
-class ITool
+#include "json.hpp"
+
+class EXPORT_API ITool
 {
 public:
     virtual ~ITool() = default;
+    virtual int run() = 0;
     virtual void activate(bool b) = 0;
-};
 
-// Factory function to create an instance of a tool
-extern "C" __declspec(dllexport) ITool* create_tool();
+    // virtual void load_data(nlohmann::json& data);
+};
 
 #endif // TOOL_INTERFACE_H
