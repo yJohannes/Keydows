@@ -8,19 +8,27 @@ SmoothScroll::SmoothScroll()
     , m_ease_out_time(0.15)
     , m_scrolling(false)
 {
-    m_keys[ACTIVATE] = 220;
-    m_keys[SCROLL_UP] = '1';
-    m_keys[SCROLL_DOWN] = '2';
-    m_keys[SLOW_SCROLL] = 'Z';
-    m_keys[FAST_SCROLL] = 'X';
+    m_keys = {
+        {ACTIVATE, 220},
+        {SCROLL_UP, '1'},
+        {SCROLL_DOWN, '2'},
+        {SLOW_SCROLL, 'Z'},
+        {FAST_SCROLL, 'X'}
+    };
 }
 
 SmoothScroll::~SmoothScroll()
 {
 }
 
+int SmoothScroll::run()
+{
+    return 0;
+}
+
 void SmoothScroll::activate(bool on)
 {
+    std::cout << "Activate triggered!!!\n";
     static int keyboard_id;
 
     if (on)
@@ -29,6 +37,7 @@ void SmoothScroll::activate(bool on)
             WH_KEYBOARD_LL,
             CREATE_LISTENER(keyboard_hook_listener)
         );
+        std::cout << "Added to listener list!\n";
     }
     else
     {
@@ -38,6 +47,7 @@ void SmoothScroll::activate(bool on)
 
 bool CALLBACK SmoothScroll::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
 {
+    std::cout << "Reached kb hook listener!\n";
     KBDLLHOOKSTRUCT* keydata = reinterpret_cast<KBDLLHOOKSTRUCT*>(l_param);
     WPARAM key = keydata->vkCode;
 

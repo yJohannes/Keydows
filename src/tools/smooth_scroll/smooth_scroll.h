@@ -1,4 +1,8 @@
-#pragma once
+// Test site
+// https://infinite-scroll.com/options.html
+
+#ifndef SMOOTH_SCROLL_H
+#define SMOOTH_SCROLL_H
 
 #include <windows.h>
 #include <algorithm>
@@ -10,13 +14,13 @@
 #include <unordered_map>
 
 #include "defines.h"
-// #include "core/application.h"
+#include "core/tool_interface.h"
+
 #include "core/input/ll_input.h"
 #include "core/input/hl_input.h"
 #include "utils/easing_functions.h"
-#include "utils/timer.h"
 
-class SmoothScroll
+class SmoothScroll : public ITool
 {
 private:
     double m_frequency;
@@ -45,7 +49,8 @@ public:
     SmoothScroll();
     ~SmoothScroll();
     
-    void activate(bool on);
+    int run() override;
+    void activate(bool b) override;
     bool CALLBACK keyboard_hook_listener(WPARAM w_param, LPARAM l_param);
     void scroll(double delta) const;
 
@@ -54,5 +59,17 @@ private:
     void end_scroll(double p0, double mod, signed dir);
 };
 
-// Test site
-// https://infinite-scroll.com/options.html
+// Expose functions for the DLL
+extern "C" EXPORT_API
+ITool* create_tool()
+{
+    return new SmoothScroll();
+}
+
+extern "C" EXPORT_API
+void destroy_tool(ITool* tool)
+{
+    delete tool;
+}
+
+#endif // SMOOTH_SCROLL_H

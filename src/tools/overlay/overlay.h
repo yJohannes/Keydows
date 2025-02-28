@@ -7,15 +7,16 @@
 #include <unordered_map>
 #include <string>
 #include <iostream>
+#include "core/tool_interface.h"
 #include "core/hotkeys/hotkey_manager.h"
 #include "core/input/hl_input.h"
+#include "core/input/ll_input.h"
 #define OVERLAY_DEBUG
 
-class CoreApplication;
-
-class Overlay
+class Overlay : public ITool
 {
 private:
+    WNDCLASSEX m_wcex;
     HWND m_hwnd;
 
     POINT m_click_pos;
@@ -35,22 +36,31 @@ private:
 
     enum Action
     {
+        // Keybinds
         HIDE,
         REMOVE_INPUT,
         CLEAR_INPUTS,
         MOVE_MOUSE,
         DOUBLE_CLICK,
         TRIPLE_CLICK,
-        QUAD_CLICK
+        QUAD_CLICK,
+
+        // Hotkeys
+        ACTIVATE
     };
 
     std::unordered_map<Action, int> m_keybinds;
+    std::unordered_map<Action, int> m_hotkeys;
 
 public:
     Overlay();
     ~Overlay();
+    int run();
+    void shutdown();
     void activate(bool on);
     void render(HWND h_wnd);
+    void repaint();
+    void show_overlay(bool show);
 
     // Key Events
     bool CALLBACK keyboard_hook_listener(WPARAM w_param, LPARAM l_param);
@@ -66,6 +76,9 @@ public:
     void set_click_direction_charset(const wchar_t* charset);
 
 private:
+    static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT msg, WPARAM w_param, LPARAM l_param);
+    LRESULT handle_message(UINT msg, WPARAM w_param, LPARAM l_param);
+
     // Helpers
     int get_char_index(wchar_t c) const;
     void char_ids_to_coordinates(int char_id1, int char_id2, int* x_out, int* y_out) const;
@@ -80,6 +93,20 @@ private:
 
     // Key Events
     void process_key(WPARAM key, LPARAM details);
+    // void process_hotkey(HotkeyID id);
 };
+
+// Expose functions for the DLL
+extern "C" EXPORT_API
+ITool* create_tool()
+{
+    return new Overlay();
+}
+
+extern "C" EXPORT_API
+void destroy_tool(ITool* tool)
+{
+    delete tool;
+}
 
 #endif // OVERLAY_H

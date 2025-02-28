@@ -1,6 +1,5 @@
 #include "overlay.h"
 #include "defines.h"
-#include "core/application.h"
 
 Overlay::Overlay()
     : m_input_char_1(NULL_CHAR)
@@ -8,42 +7,77 @@ Overlay::Overlay()
     , m_default_mem_dc(nullptr)
     , m_default_mem_bitmap(nullptr)
 {
+    const wchar_t class_name[] = L"Keydows Overlay";
+    WNDCLASSEXW m_wcex = {0};
+    m_wcex.cbSize         = sizeof(m_wcex);
+    m_wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    m_wcex.lpfnWndProc    = wnd_proc;
+    m_wcex.hInstance      = GetModuleHandle(NULL);
+    m_wcex.hCursor        = ::LoadCursorW(NULL, IDC_ARROW);
+    m_wcex.hbrBackground  = (HBRUSH)::GetStockObject(BLACK_BRUSH);
+    m_wcex.lpszClassName  = class_name;
+    ::RegisterClassExW(&m_wcex);
+
     DEVMODE dm;
     dm.dmSize = sizeof(dm);
-    EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
+    ::EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 
     set_size(dm.dmPelsWidth, dm.dmPelsHeight);
     set_resolution(24, 18);
 
-    m_keybinds[Action::HIDE] = VK_ESCAPE;
-    m_keybinds[Action::REMOVE_INPUT] = VK_BACK;
-    m_keybinds[Action::CLEAR_INPUTS] = VK_RETURN;
-    m_keybinds[Action::MOVE_MOUSE]   = L'C';
-    m_keybinds[Action::DOUBLE_CLICK] = L'V';
-    m_keybinds[Action::TRIPLE_CLICK] = L'N';
-    m_keybinds[Action::QUAD_CLICK]   = L'M';
-
-    //  HotkeyManager::register_hotkey(CoreApplication::get_hwnd(), MOD_CONTROL, VK_OEM_PERIOD);
-
     m_hwnd = ::CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
-        L"Keydows",
-        L"Keydows Overlay Window",
+        class_name,
+        L"Keydows Overlay",
         WS_POPUP | WS_VISIBLE,
         0, 0,
         dm.dmPelsWidth, dm.dmPelsHeight,
         NULL, NULL,
-        GetModuleHandle(NULL),
+        m_wcex.hInstance,
         this
     );
+
+    std::cout << "OVERLAY HWND: " << m_hwnd << "\n";
+
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
+    ::SetWindowLongPtr(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
+    m_keybinds[HIDE] = VK_ESCAPE;
+    m_keybinds[REMOVE_INPUT] = VK_BACK;
+    m_keybinds[CLEAR_INPUTS] = VK_RETURN;
+    m_keybinds[MOVE_MOUSE]   = L'C';
+    m_keybinds[DOUBLE_CLICK] = L'V';
+    m_keybinds[TRIPLE_CLICK] = L'N';
+    m_keybinds[QUAD_CLICK]   = L'M';
 
+    m_hotkeys[ACTIVATE] = HotkeyManager::register_hotkey(
+        m_hwnd, MOD_CONTROL, VK_OEM_PERIOD
+    );
 }
 
 Overlay::~Overlay()
 {
     delete_cached_default_overlay();
+    ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);
+}
+
+int Overlay::run()
+{
+    MSG msg;
+    while (::GetMessageW(&msg, m_hwnd, 0, 0))
+    {
+        std::cout << "GOT MSG\n";
+        ::TranslateMessage(&msg);
+        ::DispatchMessageW(&msg);
+    }
+
+    return (int)msg.wParam;
+}
+
+void Overlay::shutdown()
+{
+    HotkeyManager::unregister_hotkey(m_hwnd, m_hotkeys[ACTIVATE]);
+    ::PostQuitMessage(0);
 }
 
 void Overlay::activate(bool on)
@@ -63,19 +97,19 @@ void Overlay::activate(bool on)
             CREATE_LISTENER(mouse_hook_listener)
         );
 
-        CoreApplication::show_window(true);
+        show_overlay(true);
     }
     else
     {
         clear_input();
         LLInput::unregister_listener(WH_KEYBOARD_LL, keyboard_id);
         LLInput::unregister_listener(WH_MOUSE_LL, mouse_id);
-        CoreApplication::show_window(false);
+        show_overlay(false);
     }
 }
 
 void Overlay::render(HWND h_wnd)
-{
+{    
     bool use_default_overlay = (m_input_char_1 == NULL_CHAR);
 
     // Get maximized window rect
@@ -127,6 +161,28 @@ void Overlay::render(HWND h_wnd)
     ::EndPaint(h_wnd, &ps);
 }
 
+void Overlay::repaint()
+{
+    ::InvalidateRect(m_hwnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
+    ::UpdateWindow(m_hwnd);                 // Post WM_PAINT event
+}
+
+void Overlay::show_overlay(bool show)
+{
+    if (show)
+    {
+        // Because the window never has focus, it can't receive keydown events
+        ::ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
+        ::SetWindowPos(m_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+    else
+    {
+        // Repaint so that the old bitmap is not shown
+        repaint();
+        ::ShowWindow(m_hwnd, SW_HIDE);
+    }
+}
+
 // Returns bool whether to block the key input for further receivers
 // (overlay processes the input)
 bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
@@ -159,16 +215,21 @@ bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
     auto& kb = m_keybinds;
 
     // Special keys
-    if (key == kb[Action::HIDE]) {
+    if (key == kb[Action::HIDE])
+    {
         activate(false);
         return true;
-    } else if (key == kb[Action::REMOVE_INPUT]) {
+    }
+    else if (key == kb[Action::REMOVE_INPUT])
+    {
         undo_input();
-        CoreApplication::repaint();
+        repaint();
         return true;        
-    } else if (key == kb[Action::CLEAR_INPUTS]) {
+    }
+    else if (key == kb[Action::CLEAR_INPUTS])
+    {
         clear_input();
-        CoreApplication::repaint();
+        repaint();
         return true;
     }
 
@@ -286,7 +347,41 @@ void Overlay::set_click_direction_charset(const wchar_t* charset)
     m_click_direction_charset = charset;
 }
 
-#pragma endregion Setters & Getters
+LRESULT Overlay::wnd_proc(HWND h_wnd, UINT msg, WPARAM w_param, LPARAM l_param)
+{
+    Overlay* self = reinterpret_cast<Overlay*>(::GetWindowLongPtr(h_wnd, GWLP_USERDATA));
+    if (self) return self->handle_message(msg, w_param, l_param);
+
+    return ::DefWindowProc(h_wnd, msg, w_param, l_param);
+}
+
+LRESULT Overlay::handle_message(UINT msg, WPARAM w_param, LPARAM l_param)
+{
+    switch (msg) {
+    case WM_HOTKEY:
+        std::cout << "GOT HOTKEY MSG\n";
+        if (w_param == m_hotkeys[ACTIVATE])
+        {
+            // Prevent control from getting stuck. For whatever reason
+            // right mod keys won't release. Make dynamic later.
+            HLInput::release_key(VK_LCONTROL);
+            activate(!::IsWindowVisible(m_hwnd));
+        }
+        return 0;
+
+    case WM_PAINT:
+        render(m_hwnd);
+        return 0;
+
+    case WM_DESTROY:
+        shutdown();
+        return 0;
+
+    default:
+        return ::DefWindowProc(m_hwnd, msg, w_param, l_param);
+    }
+}
+
 // Returns -1 for characters not in char list
 int Overlay::get_char_index(wchar_t c) const
 {
@@ -404,7 +499,7 @@ void Overlay::process_key(WPARAM key, LPARAM details)
     if (result == -1 || result == -2)
     {
 
-        CoreApplication::repaint();  // Force repaint to update highlights
+        repaint();  // Force repaint to update highlights
         return;
     }
 
