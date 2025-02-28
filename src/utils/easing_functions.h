@@ -1,13 +1,15 @@
 // https://nicmulvaney.com/easing
 
-#pragma once
+#ifndef EASING_FUNCTIONS_H
+#define EASING_FUNCTIONS_H
+
 #include <cmath>
 
-// A collection of easing functions.
-// Parameter t should be in the range [0, 1]
+/// @brief A collection of easing functions.
+/// @brief Parameter t should be in the range [0, 1].
 namespace easing
 {
-    constexpr double pi = 3.14159265358979323846;
+    inline constexpr double pi = 3.14159265358979323846;
 
     inline double
     reverse(double (*f)(double), double t)
@@ -38,3 +40,5 @@ namespace easing
     { return (1.0 - std::cos(pi * t)) / 2; }
 
 } // namespace easing
+
+#endif // EASING_FUNCTIONS_H
