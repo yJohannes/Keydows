@@ -1,12 +1,15 @@
-- Use VK instead of wchars 
-- Move click and scroll to ll_input?
-
-- Add something like get_monitor_resolution
-
+- GENERAL:
 - Fix hotkey stuff
-- Make holding input key hold click and arrows move cursor
-- Let hotkey mod keys pass the hook  
-- Adjustable alpha for text (after everything else)
+
+- COREAPP:
 - GUI
 
-https://www.toptal.com/developers/keycode
+- TOOLS:
+- Use VK instead of wchars 
+- Adjustable alpha for text (after everything else)
+- Overlay uses GetKeyboardState instead of the ll hook state
+- Let hotkey mod keys pass the hook (MAYBE?)
+- Make holding input key hold click and arrows move cursor
+
+- LINKS:
+- https://www.toptal.com/developers/keycode
