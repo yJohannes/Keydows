@@ -21,9 +21,8 @@ public:
     static int register_hotkey(HWND h_wnd, int mod, int vk);
     static void unregister_hotkey(HWND h_wnd, int hotkey_id);
     static void unregister_all_hotkeys();
-    // static void invoke_hotkey_callback(WPARAM triggered_hotkey_id);
+    
 private:
-
     static std::unordered_map<int, HWND> m_hotkey_map;
 };
 
