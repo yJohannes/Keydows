@@ -14,16 +14,18 @@
 #include <unordered_map>
 #include <cwchar>
 
-#include "json.hpp"
-using json = nlohmann::json;
-
-#include "utils/hotkeys.h"
-#include "utils/timer.h"
+#include "tool_interface.h"
+#include "hotkeys/hotkey_manager.h"
 #include "input/ll_input.h"
 #include "input/hl_input.h"
 
-#include "tools/overlay.h"
-#include "tools/smooth_scroll.h"
+// #include "tools/overlay.h"
+
+#include "json.hpp"
+using json = nlohmann::json;
+
+typedef ITool* (*CreateToolFn)();
+typedef void (*DestroyToolFn)(ITool*);
 
 class CoreApplication
 {
@@ -31,17 +33,25 @@ private:
     static HWND h_wnd;
     static WNDCLASSEXW m_wcex;
 
-    static std::unordered_map<int, int> m_hotkey_ids;
-
-    enum Hotkeys
+    struct ToolStruct
     {
-        NO_USE,
-        QUIT,
-        OVERLAY
+        HMODULE h_dll;
+        ITool* tool_ptr;
+        std::wstring tool_name;
+        CreateToolFn create_tool = nullptr;
+        DestroyToolFn destroy_tool = nullptr;
     };
 
-    static Overlay m_overlay;
-    static SmoothScroll m_smooth_scroll;
+    static std::vector<ToolStruct> m_tools;
+
+    enum Actions
+    {
+        QUIT
+    };
+
+    static std::unordered_map<int, int> m_hotkey_ids;
+
+    // static Overlay m_overlay;
 
 public:
     CoreApplication(HINSTANCE h_instance);
@@ -49,15 +59,12 @@ public:
     static int run();
     static void shutdown();
 
-    static void repaint();
-    static void show_window(bool show);
-
-    static HWND get_hwnd() { return h_wnd; }
-
+    static void load_tool(const std::wstring& dll_path, const std::wstring& tool_name);
+    static void unload_tools();
 private:
+
     static void load_config();
     static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param);
+    static void process_hotkey(WPARAM w_param);
 
-    static void handle_hotkey(WPARAM w_param);
-    static void paint_event();
 };

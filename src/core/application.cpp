@@ -4,11 +4,12 @@
 WNDCLASSEXW CoreApplication::m_wcex;
 HWND CoreApplication::h_wnd = nullptr;
 
+std::vector<CoreApplication::ToolStruct> CoreApplication::m_tools;
+
 std::unordered_map<int, int> CoreApplication::m_hotkey_ids;
 
 
-Overlay CoreApplication::m_overlay;
-SmoothScroll CoreApplication::m_smooth_scroll;
+// Overlay CoreApplication::m_overlay;
 
 CoreApplication::CoreApplication(HINSTANCE h_instance)
 {
@@ -30,7 +31,7 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
     h_wnd = ::CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
         class_name,
-        L"Keydows Overlay Window",
+        L"Keydows",
         WS_POPUP | WS_VISIBLE,
         0, 0,
         dm.dmPelsWidth, dm.dmPelsHeight,
@@ -42,15 +43,15 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
 
     m_hotkey_ids[QUIT] = HotkeyManager::register_hotkey(h_wnd, MOD_CONTROL | MOD_ALT, L'Q');
 
-    // hotkey::register_hotkey(h_wnd, Hotkeys::QUIT, MOD_CONTROL | MOD_ALT, L'Q');
-
     load_config();
-    m_overlay.activate(false);
-    m_smooth_scroll.activate(true);
+    // m_overlay.activate(false);
+    load_tool(L"tools\\libsmooth_scroll.dll", L"smooth_scroll");
+    load_tool(L"tools\\liboverlay.dll", L"overlay");
 }
 
 CoreApplication::~CoreApplication()
 {
+    unload_tools();
     ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);
 }
 
@@ -64,6 +65,54 @@ int CoreApplication::run()
     }
 
     return (int)msg.wParam;
+}
+
+void CoreApplication::shutdown()
+{
+    LLInput::detach_hooks();
+    HotkeyManager::unregister_all_hotkeys();
+    ::PostQuitMessage(0);
+}
+
+void CoreApplication::load_tool(const std::wstring& dll_path, const std::wstring& tool_name)
+{
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+
+    std::cout << "Loading DLL " << converter.to_bytes(tool_name) << "...\n";
+
+    ToolStruct ts;
+    ts.h_dll = ::LoadLibraryW(dll_path.c_str());
+    
+    if (!ts.h_dll)
+    {
+        std::cerr << "Failed to load DLL!" << std::endl;
+        return;
+    }
+    std::cout << "Loaded DLL!\n";
+
+    ts.create_tool = (CreateToolFn)::GetProcAddress(ts.h_dll, "create_tool");
+    ts.destroy_tool = (DestroyToolFn)::GetProcAddress(ts.h_dll, "destroy_tool");
+
+    if (ts.create_tool && ts.destroy_tool)
+    {
+        std::cout << "Found create/destroy fns!\n";
+
+        ts.tool_ptr = ts.create_tool();
+        m_tools.push_back(ts);
+
+        std::cout << "Created tool!\n";
+        ts.tool_ptr->activate(true);
+        std::thread(&ITool::run, ts.tool_ptr).detach();
+    }
+}
+
+void CoreApplication::unload_tools()
+{
+    for (auto& ts : m_tools)
+    {
+        ts.destroy_tool(ts.tool_ptr);
+        ::FreeLibrary(ts.h_dll);
+    }
 }
 
 void CoreApplication::load_config()
@@ -109,11 +158,7 @@ LRESULT CALLBACK CoreApplication::wnd_proc(HWND h_wnd, UINT message, WPARAM w_pa
 {
     switch (message) {
     case WM_HOTKEY:
-        handle_hotkey(w_param);
-        return 0;
-
-    case WM_PAINT:
-        paint_event();
+        process_hotkey(w_param);
         return 0;
 
     case WM_DESTROY:
@@ -125,52 +170,10 @@ LRESULT CALLBACK CoreApplication::wnd_proc(HWND h_wnd, UINT message, WPARAM w_pa
     }
 }
 
-void CoreApplication::shutdown()
-{
-    LLInput::detach_hooks();
-    HotkeyManager::unregister_all_hotkeys();
-    ::PostQuitMessage(0);
-}
-
-void CoreApplication::handle_hotkey(WPARAM w_param)
+void CoreApplication::process_hotkey(WPARAM w_param)
 {
     if (w_param == m_hotkey_ids[QUIT])
     {
         ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
     }
-    else if (w_param == m_hotkey_ids[OVERLAY])
-    {
-        // Prevent control from getting stuck. For whatever reason
-        // right mod keys won't release. Make dynamic later.
-        // ADD A DELAY
-        HLInput::release_key(VK_LCONTROL);
-        m_overlay.activate(!::IsWindowVisible(h_wnd));
-    }
-}
-
-void CoreApplication::show_window(bool show)
-{
-    if (show)
-    {
-        // Because the window never has focus, it can't receive keydown events
-        ::ShowWindow(h_wnd, SW_SHOWNOACTIVATE);
-        ::SetWindowPos(h_wnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    }
-    else
-    {
-        // Repaint so that the old bitmap is not shown
-        repaint();
-        ::ShowWindow(h_wnd, SW_HIDE);
-    }
-}
-
-void CoreApplication::paint_event()
-{
-    m_overlay.render(h_wnd);
-}
-
-void CoreApplication::repaint()
-{
-    ::InvalidateRect(h_wnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
-    ::UpdateWindow(h_wnd);                 // Post WM_PAINT event
 }
