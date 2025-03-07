@@ -1,7 +1,7 @@
 #ifndef TOOL_INTERFACE_H
 #define TOOL_INTERFACE_H
 
-#ifdef BUILD_DLL
+#ifdef BUILD_TOOL
     #define EXPORT_API __declspec(dllexport)
 #else
     #define EXPORT_API __declspec(dllimport)
