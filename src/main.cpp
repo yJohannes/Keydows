@@ -1,7 +1,6 @@
 #include "defines.h"
 #include <windows.h>
 
-#define BUILD_CORE  // Enables __declspec(dllexport)
 #include "core/application.h"
 
 int APIENTRY WinMain(
