@@ -1,24 +1,21 @@
 #include "defines.h"
 #include "application.h"
 
-WNDCLASSEXW  Application::m_wcex;
-HWND Application::h_wnd = nullptr;
-HHOOK Application::m_keyboard_hook = nullptr;
-HHOOK Application::m_mouse_hook = nullptr;
-Overlay Application::m_overlay;
+WNDCLASSEXW CoreApplication::m_wcex;
+HWND CoreApplication::h_wnd = nullptr;
 
-Application::Application(HINSTANCE h_instance)
+std::vector<CoreApplication::ToolStruct> CoreApplication::m_tools;
+
+std::unordered_map<int, int> CoreApplication::m_hotkey_ids;
+
+
+// Overlay CoreApplication::m_overlay;
+
+CoreApplication::CoreApplication(HINSTANCE h_instance)
 {
-#if NTDDI_VERSION >= NTDDI_WINBLUE
-    ::SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-#else
-    ::SetProcessDPIAware();
-#endif
-
-    // Window creation
     const wchar_t class_name[] = L"Keydows";
     WNDCLASSEXW m_wcex = {0};
-    m_wcex.cbSize = sizeof(m_wcex);
+    m_wcex.cbSize         = sizeof(m_wcex);
     m_wcex.style          = CS_HREDRAW | CS_VREDRAW;
     m_wcex.lpfnWndProc    = wnd_proc;
     m_wcex.hInstance      = h_instance;
@@ -27,31 +24,38 @@ Application::Application(HINSTANCE h_instance)
     m_wcex.lpszClassName  = class_name;
     ::RegisterClassExW(&m_wcex);
 
+    DEVMODE dm;
+    dm.dmSize = sizeof(dm);
+    EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
+
     h_wnd = ::CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to keypresses
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
         class_name,
-        L"Keydows Overlay Window",
+        L"Keydows",
         WS_POPUP | WS_VISIBLE,
         0, 0,
-        ::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN),
+        dm.dmPelsWidth, dm.dmPelsHeight,
         NULL, NULL,
         h_instance,
         this
     );
+    ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
 
-    // This does nothing at the moment for text
-    ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 128, LWA_ALPHA | LWA_COLORKEY);
+    m_hotkey_ids[QUIT] = HotkeyManager::register_hotkey(h_wnd, MOD_CONTROL | MOD_ALT, L'Q');
 
     load_config();
-    m_overlay.activate(false);
+    // m_overlay.activate(false);
+    load_tool(L"tools\\libsmooth_scroll.dll", L"smooth_scroll");
+    load_tool(L"tools\\liboverlay.dll", L"overlay");
 }
 
-Application::~Application()
+CoreApplication::~CoreApplication()
 {
+    unload_tools();
     ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);
 }
 
-int Application::run()
+int CoreApplication::run()
 {
     MSG msg;
     while (::GetMessageW(&msg, NULL, 0, 0))
@@ -63,66 +67,98 @@ int Application::run()
     return (int)msg.wParam;
 }
 
-void Application::load_config()
+void CoreApplication::shutdown()
 {
-    // std::ifstream config_file("../config.json");
-    std::ifstream config_file("config.json");
+    LLInput::detach_hooks();
+    HotkeyManager::unregister_all_hotkeys();
+    ::PostQuitMessage(0);
+}
+
+void CoreApplication::load_tool(const std::wstring& dll_path, const std::wstring& tool_name)
+{
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+
+    std::cout << "Loading DLL " << converter.to_bytes(tool_name) << "...\n";
+
+    ToolStruct ts;
+    ts.h_dll = ::LoadLibraryW(dll_path.c_str());
     
-    if (!config_file.is_open())
+    if (!ts.h_dll)
     {
-        std::cerr << "Failed to open config.json" << std::endl;
-        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-        hotkey::register_key(h_wnd, hotkey::OVERLAY, MOD_RIGHT | MOD_CONTROL, VK_OEM_PERIOD);
-        m_overlay.set_resolution(24, 19);
+        std::cerr << "Failed to load DLL!" << std::endl;
         return;
     }
+    std::cout << "Loaded DLL!\n";
 
-    json json;
-    config_file >> json;
+    ts.create_tool = (CreateToolFn)::GetProcAddress(ts.h_dll, "create_tool");
+    ts.destroy_tool = (DestroyToolFn)::GetProcAddress(ts.h_dll, "destroy_tool");
 
-    // Application
+    if (ts.create_tool && ts.destroy_tool)
     {
-        hotkey::register_key(h_wnd, hotkey::CLOSE, MOD_CONTROL | MOD_ALT, 'Q');
-    }
+        std::cout << "Found create/destroy fns!\n";
 
-    // Overlay
-    {
-        auto overlay = json.at("overlay");
+        ts.tool_ptr = ts.create_tool();
+        m_tools.push_back(ts);
 
-        auto resolution = overlay.at("resolution");
-        int x = resolution.at(0);
-        int y = resolution.at(1);
-
-        m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
-        m_overlay.set_resolution(x, y);
-        
-        std::string charset = overlay.at("charset");
-        std::string dir_charset = overlay.at("click_direction_charset");
-        
-        m_overlay.set_charset(std::wstring(charset.begin(), charset.end()).c_str());
-        m_overlay.set_click_direction_charset(std::wstring(dir_charset.begin(), dir_charset.end()).c_str());
-
-        // Hotkeys
-        auto hk = overlay.at("hotkeys");
-        auto activate = hk.at("activate");
-        hotkey::register_key(h_wnd, hotkey::OVERLAY, activate.at("mod"), activate.at("key"));
+        std::cout << "Created tool!\n";
+        ts.tool_ptr->activate(true);
+        std::thread(&ITool::run, ts.tool_ptr).detach();
     }
 }
 
-#pragma region Proc, hook
-LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
+void CoreApplication::unload_tools()
+{
+    for (auto& ts : m_tools)
+    {
+        ts.destroy_tool(ts.tool_ptr);
+        ::FreeLibrary(ts.h_dll);
+    }
+}
+
+void CoreApplication::load_config()
+{
+    // std::ifstream config_file("../config.json");
+    
+    // if (!config_file.is_open())
+    {
+        // std::cerr << "Failed to open config.json" << std::endl;
+        // m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
+        // m_overlay.set_resolution(24, 19);
+        // return;
+    }
+
+    // json json;
+    // config_file >> json;
+
+    // Overlay
+    // {
+    //     auto overlay = json.at("overlay");
+
+    //     auto resolution = overlay.at("resolution");
+    //     int x = resolution.at(0);
+    //     int y = resolution.at(1);
+
+    //     m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
+    //     m_overlay.set_resolution(x, y);
+        
+    //     std::string charset = overlay.at("charset");
+    //     std::string dir_charset = overlay.at("click_direction_charset");
+        
+    //     m_overlay.set_charset(std::wstring(charset.begin(), charset.end()).c_str());
+    //     m_overlay.set_click_direction_charset(std::wstring(dir_charset.begin(), dir_charset.end()).c_str());
+
+    //     // Hotkeys
+    //     auto hk = overlay.at("hotkeys");
+    //     auto activate = hk.at("activate");
+    //     hotkey::register_hotkey(h_wnd, Hotkeys::OVERLAY, activate.at("mod"), activate.at("key"));
+    // }
+}
+
+LRESULT CALLBACK CoreApplication::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)
 {
     switch (message) {
     case WM_HOTKEY:
-        handle_hotkey(w_param);
-        return 0;
-
-    // case WM_KEYDOWN:
-    // case WM_SYSKEYDOWN:
-        // return 0;
-
-    case WM_PAINT:
-        paint_event();
+        process_hotkey(w_param);
         return 0;
 
     case WM_DESTROY:
@@ -134,159 +170,10 @@ LRESULT CALLBACK Application::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param,
     }
 }
 
-// Posts keyboard event messages for wnd_proc to process
-LRESULT CALLBACK Application::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
+void CoreApplication::process_hotkey(WPARAM w_param)
 {
-    if (m_overlay.keyboard_proc_receiver(n_code, w_param, l_param))
+    if (w_param == m_hotkey_ids[QUIT])
     {
-        return 1;
-    }
-    // Pass the input to further receivers
-    return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
-}
-
-LRESULT CALLBACK Application::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
-{
-    if (n_code == HC_ACTION)
-    {
-        if ((w_param == WM_LBUTTONDOWN) || (w_param == WM_RBUTTONDOWN))
-        {
-            m_overlay.activate(false);
-        }
-    }
-
-    // Pass the input to further receivers
-    return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
-}
-
-void Application::shutdown()
-{
-    detach_hooks();
-    hotkey::unregister_hotkeys(h_wnd);
-    ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
-    ::PostQuitMessage(0);
-}
-
-
-void Application::attach_hooks()
-{
-    m_keyboard_hook = ::SetWindowsHookEx(WH_KEYBOARD_LL, keyboard_proc, NULL, 0);
-    if (!m_keyboard_hook)
-    {
-        std::cerr << "Failed to install keyboard hook!" << std::endl;
-        ::MessageBox(NULL, L"Failed to install keyboard hook!", L"Error", MB_ICONERROR | MB_OK);
-    }
-
-    m_mouse_hook = ::SetWindowsHookEx(WH_MOUSE_LL, mouse_proc, NULL, 0);
-    if (!m_mouse_hook)
-    {
-        std::cerr << "Failed to install mouse hook!" << std::endl;
-        ::MessageBox(NULL, L"Failed to install mouse hook!", L"Error", MB_ICONERROR | MB_OK);
+        ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
     }
 }
-
-void Application::detach_hooks()
-{
-    ::UnhookWindowsHookEx(m_keyboard_hook);
-    ::UnhookWindowsHookEx(m_mouse_hook);
-}
-#pragma endregion Proc, hook
-#pragma region Event
-
-void Application::handle_hotkey(WPARAM w_param)
-{
-    switch (w_param) {
-    case hotkey::CLOSE:
-        shutdown();
-        break;
-
-    case hotkey::OVERLAY:
-        // Prevent control from getting stuck. For whatever reason
-        // right mod keys won't release. Make dynamic later.
-        release_key(VK_LCONTROL);
-        m_overlay.activate(!::IsWindowVisible(h_wnd));
-        // show_window(!::IsWindowVisible(h_wnd));
-
-        break;
-    }
-}
-
-void Application::show_window(bool show)
-{
-    if (show)
-    {
-        // Because the window never has focus, it can't receive keydown events
-        ::ShowWindow(h_wnd, SW_SHOWNOACTIVATE);
-        ::SetWindowPos(h_wnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    }
-    else
-    {
-        // Repaint so that the old bitmap is not shown
-        repaint();
-        ::ShowWindow(h_wnd, SW_HIDE);
-    }
-}
-
-void Application::paint_event()
-{
-    m_overlay.render(h_wnd);
-}
-
-void Application::repaint()
-{
-    ::InvalidateRect(h_wnd, NULL, FALSE);  // NULL means the entire client area, TRUE means erase background
-    ::UpdateWindow(h_wnd);                 // Post WM_PAINT event
-}
-
-void Application::click(int x, int y, bool right_click)
-{
-    INPUT inputs[2] = {};
-    inputs[0].type = INPUT_MOUSE;
-    inputs[1].type = INPUT_MOUSE;
-
-    DWORD down;
-    DWORD up;
-    if (right_click)
-    {
-        down = MOUSEEVENTF_RIGHTDOWN;
-        up   = MOUSEEVENTF_RIGHTUP;
-    }
-    else
-    {
-        down = MOUSEEVENTF_LEFTDOWN;
-        up   = MOUSEEVENTF_LEFTUP;
-    }
-
-    inputs[0].mi.dwFlags = down;
-    inputs[1].mi.dwFlags = up;
-
-    ::SetCursorPos(x, y);
-    ::SendInput(1, &inputs[0], sizeof(INPUT));
-    ::Sleep(25); // Send the inputs with a delay because some apps may not register them otherwise
-    ::SendInput(1, &inputs[1], sizeof(INPUT));
-}
-
-void Application::click_async(int x, int y, bool right_click)
-{
-    std::thread(&Application::click, x, y, right_click).detach();
-}
-
-// Used for releasing keys so they don't get left on hold after overlay is activated
-void Application::release_key(int vk_code)
-{
-    INPUT input = {0};
-    input.type = INPUT_KEYBOARD;
-    input.ki.wVk = vk_code;
-    input.ki.dwFlags = KEYEVENTF_KEYUP;
-    ::SendInput(1, &input, sizeof(INPUT));
-}
-
-bool Application::is_key_down(int virtual_key)
-{
-    // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getkeystate
-    // If the high-order bit is 1, the key is down; otherwise, it is up.
-    //
-    return ::GetAsyncKeyState(virtual_key) & 0x8000;
-}
-
-#pragma endregion

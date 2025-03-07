@@ -1,0 +1,15 @@
+- GENERAL:
+- Fix hotkey stuff
+
+- COREAPP:
+- GUI
+
+- TOOLS:
+- Use VK instead of wchars 
+- Adjustable alpha for text (after everything else)
+- Overlay uses GetKeyboardState instead of the ll hook state
+- Let hotkey mod keys pass the hook (MAYBE?)
+- Make holding input key hold click and arrows move cursor
+
+- LINKS:
+- https://www.toptal.com/developers/keycode

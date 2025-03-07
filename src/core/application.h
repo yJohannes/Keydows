@@ -1,70 +1,68 @@
 // https://stackoverflow.com/questions/29091028/windows-api-write-to-screen-as-on-screen-display
 // https://forums.unrealengine.com/t/how-do-i-include-winuser-h-identifier-wm_touch-is-undefined-dword-is-ambiguous/69946/5
-
 #pragma once
 
+#include "defines.h"
 #include <SDKDDKVer.h>
 #include <windows.h>
 #include <shellscalingapi.h>
 
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <thread>
+#include <vector>
+#include <unordered_map>
 #include <cwchar>
 
-#include "defines.h"
-#include "overlay.h"
-#include "hotkeys.h"
+#include "tool_interface.h"
+#include "hotkeys/hotkey_manager.h"
+#include "input/ll_input.h"
+#include "input/hl_input.h"
 
 #include "json.hpp"
 using json = nlohmann::json;
-/*
-TODO:
-- Adjustable alpha for text
-- GUI for custom bindings
-- If hotkey mod key is down and hook recives the key, let it pass to close overlay  
-- Make holding input key hold click and arrows move cursor
-*/
 
+typedef ITool* (*CreateToolFn)();
+typedef void (*DestroyToolFn)(ITool*);
 
-/*
- * The Keydows overlay application. Uses low-level
- * mouse and keyboard hooks to catch keystrokes. The overlay never
- * obtains focus and therefore only relies on said hooks.
- */
-class Application
+class CoreApplication
 {
-public:
-    static HWND h_wnd;
 private:
+    static HWND h_wnd;
     static WNDCLASSEXW m_wcex;
-    static HHOOK m_keyboard_hook;
-    static HHOOK m_mouse_hook;
 
-    static Overlay m_overlay;
+    struct ToolStruct
+    {
+        HMODULE h_dll;
+        ITool* tool_ptr;
+        std::wstring tool_name;
+        CreateToolFn create_tool = nullptr;
+        DestroyToolFn destroy_tool = nullptr;
+    };
+
+    static std::vector<ToolStruct> m_tools;
+
+    enum Actions
+    {
+        QUIT
+    };
+
+    static std::unordered_map<int, int> m_hotkey_ids;
+
+    // static Overlay m_overlay;
+
 public:
-    Application(HINSTANCE h_instance);
-    ~Application();
+    CoreApplication(HINSTANCE h_instance);
+    ~CoreApplication();
     static int run();
     static void shutdown();
-    
-    static void attach_hooks();
-    static void detach_hooks();
-    static void repaint();
-    static void show_window(bool show);
-    static void click(int x, int y, bool right_click);
-    static void click_async(int x, int y, bool right_click);
 
-    static void release_key(int vk_code);
-    static bool is_key_down(int vk_code);
-
+    static void load_tool(const std::wstring& dll_path, const std::wstring& tool_name);
+    static void unload_tools();
 private:
+
     static void load_config();
     static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param);
-    static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
-    static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
+    static void process_hotkey(WPARAM w_param);
 
-    static void handle_hotkey(WPARAM w_param);
-    static void paint_event();
 };
