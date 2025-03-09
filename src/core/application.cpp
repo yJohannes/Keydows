@@ -4,12 +4,8 @@
 WNDCLASSEXW CoreApplication::m_wcex;
 HWND CoreApplication::h_wnd = nullptr;
 
-std::vector<CoreApplication::ToolStruct> CoreApplication::m_tools;
-
+std::vector<CoreApplication::ToolStruct> CoreApplication::m_loaded_tools;
 std::unordered_map<int, int> CoreApplication::m_hotkey_ids;
-
-
-// Overlay CoreApplication::m_overlay;
 
 CoreApplication::CoreApplication(HINSTANCE h_instance)
 {
@@ -44,8 +40,7 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
     m_hotkey_ids[QUIT] = HotkeyManager::register_hotkey(h_wnd, MOD_CONTROL | MOD_ALT, L'Q');
 
     load_config();
-    // m_overlay.activate(false);
-    load_tool(L"tools\\libsmooth_scroll.dll", L"smooth_scroll");
+    load_tool(L"tools\\libsmooth_navigate.dll", L"smooth_navigate");
     load_tool(L"tools\\liboverlay.dll", L"overlay");
 }
 
@@ -98,17 +93,17 @@ void CoreApplication::load_tool(const std::wstring& dll_path, const std::wstring
         std::cout << "Found create/destroy fns!\n";
 
         ts.tool_ptr = ts.create_tool();
-        m_tools.push_back(ts);
+        m_loaded_tools.push_back(ts);
 
         std::cout << "Created tool!\n";
-        ts.tool_ptr->activate(true);
+        ts.tool_ptr->toggle(true);
         std::thread(&ITool::run, ts.tool_ptr).detach();
     }
 }
 
 void CoreApplication::unload_tools()
 {
-    for (auto& ts : m_tools)
+    for (auto& ts : m_loaded_tools)
     {
         ts.destroy_tool(ts.tool_ptr);
         ::FreeLibrary(ts.h_dll);
