@@ -5,7 +5,6 @@ void HLInput::move_cursor(int x, int y)
     ::SetCursorPos(x, y);
 }
 
-
 void HLInput::click(int n, int x, int y, bool right_click)
 {
     INPUT inputs[2] = {};
@@ -44,13 +43,25 @@ void HLInput::click_async(int n, int x, int y, bool right_click)
     std::thread(&HLInput::click, n, x, y, right_click).detach();
 }
 
-// Used for releasing keys so they don't get left on hold after overlay is activated
-void HLInput::release_key(int vk_code)
+void HLInput::scroll(double delta)
+{
+    int d = static_cast<int>(delta * 120);  // Scale by the standard delta unit
+
+    INPUT input = { 0 };
+    input.type = INPUT_MOUSE;
+    input.mi.dwFlags = (d > 0) ? MOUSEEVENTF_WHEEL : MOUSEEVENTF_WHEEL;
+    input.mi.mouseData = d;
+
+    ::SendInput(1, &input, sizeof(INPUT));
+}
+
+
+void HLInput::set_key(int vk_code, bool pressed)
 {
     INPUT input = {0};
     input.type = INPUT_KEYBOARD;
     input.ki.wVk = vk_code;
-    input.ki.dwFlags = KEYEVENTF_KEYUP;
+    input.ki.dwFlags = pressed ? 0 : KEYEVENTF_KEYUP;
     ::SendInput(1, &input, sizeof(INPUT));
 }
 
