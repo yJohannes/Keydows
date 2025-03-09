@@ -1,8 +1,8 @@
 // Test site
 // https://infinite-scroll.com/options.html
 
-#ifndef SMOOTH_SCROLL_H
-#define SMOOTH_SCROLL_H
+#ifndef SMOOTH_NAVIGATE_H
+#define SMOOTH_NAVIGATE_H
 
 #include <windows.h>
 #include <algorithm>
@@ -15,55 +15,80 @@
 
 #include "defines.h"
 #include "core/tool_interface.h"
-
 #include "core/input/ll_input.h"
 #include "core/input/hl_input.h"
 #include "utils/easing_functions.h"
 
-class SmoothScroll : public ITool
+namespace smooth_navigate
+{
+
+struct SmoothInput
+{
+    struct
+    {
+        double frequency;
+        int    interval;
+        double step;
+        double mod_factor;
+        double ease_in;
+        double ease_out;
+    } config;
+
+    struct
+    {
+        bool on;
+        double progress;    // range [0, 1]
+        signed dir;         // 1 = up, -1 = down
+        double mod;         // modifier in use
+    } state;
+
+    
+};
+
+class SmoothNavigate : public ITool
 {
 private:
-    double m_frequency;
-    double m_step_size;
-    double m_modifier_factor;
-    double m_ease_in_time;
-    double m_ease_out_time;
+    SmoothInput m_scroll;
+    SmoothInput m_move; 
 
-    bool m_thread_active = false;
-    std::atomic<bool> m_scrolling;
+    std::atomic<bool> m_thread_active = false;
     std::mutex m_scroll_mutex;
     std::condition_variable m_scroll_cv;
-
 
     enum Action
     {
         ACTIVATE,
+        CLICK,
+        MOVE_UP,
+        MOVE_DOWN,
+        MOVE_LEFT,
+        MOVE_RIGHT,
         SCROLL_UP,
         SCROLL_DOWN,
+        SIDEWAYS_SCROLL,
         SLOW_SCROLL,
         FAST_SCROLL
     };
 
     std::unordered_map<Action, int> m_keys;
 public:
-    SmoothScroll();
-    ~SmoothScroll();
+    SmoothNavigate();
+    ~SmoothNavigate();
     
     int run() override;
-    void activate(bool b) override;
+    void toggle(bool b) override;
     bool CALLBACK keyboard_hook_listener(WPARAM w_param, LPARAM l_param);
-    void scroll(double delta) const;
 
 private:
     void start_scroll();
-    void end_scroll(double p0, double mod, signed dir);
+    void end_scroll();
 };
 
 // Expose functions for the DLL
 extern "C" EXPORT_API
 ITool* create_tool()
 {
-    return new SmoothScroll();
+    return new smooth_navigate::SmoothNavigate();
 }
 
 extern "C" EXPORT_API
@@ -72,4 +97,6 @@ void destroy_tool(ITool* tool)
     delete tool;
 }
 
-#endif // SMOOTH_SCROLL_H
+} // namespace smooth_navigate
+
+#endif // SMOOTH_NAVIGATE_H
