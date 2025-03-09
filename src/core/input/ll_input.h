@@ -9,20 +9,43 @@
 #define CREATE_LISTENER(listener) \
     [this](WPARAM b, LPARAM c) -> bool { return listener(b, c); }
 
-// Manages low-level keyboard and mouse hooks.
+/// @brief A callback function must return a bool block key propagation.
+typedef std::function<CALLBACK bool(WPARAM, LPARAM)> Listener;
+
+struct ListenerKey
+{
+    int hook_type;
+    int id;
+
+    bool operator==(const ListenerKey& other) const {
+        return hook_type == other.hook_type && id == other.id;
+    }
+};
+
+// Specialize std::hash for ListenerKey
+namespace std
+{
+    template <>
+    struct hash<ListenerKey>
+    {
+        std::size_t operator()(const ListenerKey& key) const noexcept
+        {
+            return std::hash<int>{}(key.hook_type) ^ (std::hash<int>{}(key.id) << 1);
+        }
+    };
+}
+
+
+// Manages low-level keyboard and mouse hooks
 class LLInput
 {
 public:
-
-    /// @brief A callback function must return a bool block key propagation.
-    using Listener =  std::function<CALLBACK bool(WPARAM, LPARAM)>;
     static bool keys[256];
 private:
     static HHOOK m_keyboard_hook;
     static HHOOK m_mouse_hook;
 
-    static std::unordered_map<int, Listener> m_keyboard_listeners;
-    static std::unordered_map<int, Listener> m_mouse_listeners;
+    static std::unordered_map<ListenerKey, Listener> m_registered_listeners;
 public:
 
     /// @brief Register a listener to a hook.
@@ -44,5 +67,4 @@ public:
 private:
     static LRESULT CALLBACK keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param);
     static LRESULT CALLBACK mouse_proc(int n_code, WPARAM w_param, LPARAM l_param);
-    static std::unordered_map<int, Listener>* get_hook_listener_map(int hook_type);
 };
