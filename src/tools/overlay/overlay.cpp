@@ -1,6 +1,9 @@
 #include "overlay.h"
 #include "defines.h"
 
+namespace overlay
+{
+
 Overlay::Overlay()
     : m_input_char_1(NULL_CHAR)
     , m_input_char_2(NULL_CHAR)
@@ -37,8 +40,6 @@ Overlay::Overlay()
         this
     );
 
-    std::cout << "OVERLAY HWND: " << m_hwnd << "\n";
-
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
     ::SetWindowLongPtr(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
@@ -66,7 +67,6 @@ int Overlay::run()
     MSG msg;
     while (::GetMessageW(&msg, m_hwnd, 0, 0))
     {
-        std::cout << "GOT MSG\n";
         ::TranslateMessage(&msg);
         ::DispatchMessageW(&msg);
     }
@@ -80,7 +80,7 @@ void Overlay::shutdown()
     ::PostQuitMessage(0);
 }
 
-void Overlay::activate(bool on)
+void Overlay::toggle(bool on)
 {
     static int keyboard_id;
     static int mouse_id;
@@ -217,7 +217,7 @@ bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
     // Special keys
     if (key == kb[Action::HIDE])
     {
-        activate(false);
+        toggle(false);
         return true;
     }
     else if (key == kb[Action::REMOVE_INPUT])
@@ -249,7 +249,7 @@ bool CALLBACK Overlay::mouse_hook_listener(WPARAM w_param, LPARAM l_param)
 {
     if (w_param == WM_LBUTTONDOWN || w_param == WM_RBUTTONDOWN)
     {
-        activate(false);
+        toggle(false);
     }
 
     return false;
@@ -359,13 +359,12 @@ LRESULT Overlay::handle_message(UINT msg, WPARAM w_param, LPARAM l_param)
 {
     switch (msg) {
     case WM_HOTKEY:
-        std::cout << "GOT HOTKEY MSG\n";
         if (w_param == m_hotkeys[ACTIVATE])
         {
             // Prevent control from getting stuck. For whatever reason
             // right mod keys won't release. Make dynamic later.
-            HLInput::release_key(VK_LCONTROL);
-            activate(!::IsWindowVisible(m_hwnd));
+            HLInput::set_key(VK_LCONTROL, false);
+            toggle(!::IsWindowVisible(m_hwnd));
         }
         return 0;
 
@@ -507,15 +506,17 @@ void Overlay::process_key(WPARAM key, LPARAM details)
     {
 
         HLInput::move_cursor(m_click_pos.x, m_click_pos.y);
-        activate(false);
+        toggle(false);
         return;
     }
 
     if (result > 0)
     {
         HLInput::click_async(result, m_click_pos.x, m_click_pos.y, HLInput::is_key_down(VK_SHIFT));
-        activate(false);
+        toggle(false);
         return;
     }
 
 }
+
+} // namespace overlay

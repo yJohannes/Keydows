@@ -13,6 +13,9 @@
 #include "core/input/ll_input.h"
 #define OVERLAY_DEBUG
 
+namespace overlay
+{
+
 class Overlay : public ITool
 {
 private:
@@ -57,7 +60,7 @@ public:
     ~Overlay();
     int run();
     void shutdown();
-    void activate(bool on);
+    void toggle(bool on);
     void render(HWND h_wnd);
     void repaint();
     void show_overlay(bool show);
@@ -100,7 +103,7 @@ private:
 extern "C" EXPORT_API
 ITool* create_tool()
 {
-    return new Overlay();
+    return new overlay::Overlay();
 }
 
 extern "C" EXPORT_API
@@ -108,5 +111,7 @@ void destroy_tool(ITool* tool)
 {
     delete tool;
 }
+
+} // namespace overlay
 
 #endif // OVERLAY_H
