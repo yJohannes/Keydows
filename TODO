@@ -1,15 +1,24 @@
-- GENERAL:
-- Fix hotkey stuff
+- IDEAS:
+- Instead of locking the § key for scrolling make a combination that turns it on and off
+
+- FIX:
+- Can't click while § key is down
+- Hotkey keys not releasing
 
 - COREAPP:
 - GUI
 
-- TOOLS:
+- OVERLAY:
 - Use VK instead of wchars 
-- Adjustable alpha for text (after everything else)
+- Adjustable alpha for text
 - Overlay uses GetKeyboardState instead of the ll hook state
-- Let hotkey mod keys pass the hook (MAYBE?)
-- Make holding input key hold click and arrows move cursor
+- Make holding input key hold click and arrows move the cursor
+
+- SMOOTH NAVIGATE:
+- § + arrow keys moves cursor
+- Diagonal movement has the same velocity in all directions
+- § + enter click
+- Alt drag type of thing
 
 - LINKS:
 - https://www.toptal.com/developers/keycode
