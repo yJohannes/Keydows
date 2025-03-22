@@ -1,5 +1,5 @@
 - IDEAS:
-- Instead of locking the § key for scrolling make a combination that turns it on and off
+- something better than locking the § key
 
 - FIX:
 - Can't click while § key is down
@@ -15,8 +15,6 @@
 - Make holding input key hold click and arrows move the cursor
 
 - SMOOTH NAVIGATE:
-- § + arrow keys moves cursor
-- Diagonal movement has the same velocity in all directions
 - § + enter click
 - Alt drag type of thing
 
