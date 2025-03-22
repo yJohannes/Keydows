@@ -20,7 +20,6 @@
 #include "input/hl_input.h"
 
 #include "json.hpp"
-using json = nlohmann::json;
 
 typedef ITool* (*CreateToolFn)();
 typedef void (*DestroyToolFn)(ITool*);
@@ -51,15 +50,16 @@ private:
 
 public:
     CoreApplication(HINSTANCE h_instance);
-    ~CoreApplication();
+    ~CoreApplication() = default;
+
     static int run();
     static void shutdown();
 
     static void load_tool(const std::wstring& dll_path, const std::wstring& tool_name);
     static void unload_tools();
+
 private:
     static LRESULT CALLBACK wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param);
     static void process_hotkey(WPARAM w_param);
     static void load_config();
-
 };

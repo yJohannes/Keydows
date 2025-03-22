@@ -44,12 +44,6 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
     load_tool(L"tools\\liboverlay.dll", L"overlay");
 }
 
-CoreApplication::~CoreApplication()
-{
-    unload_tools();
-    ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);
-}
-
 int CoreApplication::run()
 {
     MSG msg;
@@ -66,14 +60,17 @@ void CoreApplication::shutdown()
 {
     LLInput::detach_hooks();
     HotkeyManager::unregister_all_hotkeys();
+
+    unload_tools();
+
     ::PostQuitMessage(0);
+    ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);
 }
 
 void CoreApplication::load_tool(const std::wstring& dll_path, const std::wstring& tool_name)
 {
     std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-
-    std::cout << "Loading DLL " << converter.to_bytes(tool_name) << "...\n";
+    std::cout << "Loading " << converter.to_bytes(tool_name) << ".dll...\n";
 
     ToolStruct ts;
     ts.h_dll = ::LoadLibraryW(dll_path.c_str());
@@ -90,12 +87,9 @@ void CoreApplication::load_tool(const std::wstring& dll_path, const std::wstring
 
     if (ts.create_tool && ts.destroy_tool)
     {
-        std::cout << "Found create/destroy fns!\n";
-
         ts.tool_ptr = ts.create_tool();
         m_loaded_tools.push_back(ts);
 
-        std::cout << "Created tool!\n";
         ts.tool_ptr->toggle(true);
         std::thread(&ITool::run, ts.tool_ptr).detach();
     }
@@ -114,39 +108,8 @@ void CoreApplication::load_config()
 {
     // std::ifstream config_file("../config.json");
     
-    // if (!config_file.is_open())
-    {
-        // std::cerr << "Failed to open config.json" << std::endl;
-        // m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
-        // m_overlay.set_resolution(24, 19);
-        // return;
-    }
-
     // json json;
     // config_file >> json;
-
-    // Overlay
-    // {
-    //     auto overlay = json.at("overlay");
-
-    //     auto resolution = overlay.at("resolution");
-    //     int x = resolution.at(0);
-    //     int y = resolution.at(1);
-
-    //     m_overlay.set_size(::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
-    //     m_overlay.set_resolution(x, y);
-        
-    //     std::string charset = overlay.at("charset");
-    //     std::string dir_charset = overlay.at("click_direction_charset");
-        
-    //     m_overlay.set_charset(std::wstring(charset.begin(), charset.end()).c_str());
-    //     m_overlay.set_click_direction_charset(std::wstring(dir_charset.begin(), dir_charset.end()).c_str());
-
-    //     // Hotkeys
-    //     auto hk = overlay.at("hotkeys");
-    //     auto activate = hk.at("activate");
-    //     hotkey::register_hotkey(h_wnd, Hotkeys::OVERLAY, activate.at("mod"), activate.at("key"));
-    // }
 }
 
 LRESULT CALLBACK CoreApplication::wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param)

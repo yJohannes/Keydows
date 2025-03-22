@@ -4,7 +4,7 @@
 #include <functional>
 #include <unordered_map>
 
-#define HOOK_DEBUG
+// #define HOOK_DEBUG
 
 #define CREATE_LISTENER(listener) \
     [this](WPARAM b, LPARAM c) -> bool { return listener(b, c); }

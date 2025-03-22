@@ -11,7 +11,8 @@
 #include "core/hotkeys/hotkey_manager.h"
 #include "core/input/hl_input.h"
 #include "core/input/ll_input.h"
-#define OVERLAY_DEBUG
+
+// #define OVERLAY_DEBUG
 
 namespace overlay
 {

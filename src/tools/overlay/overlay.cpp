@@ -192,7 +192,7 @@ bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
     KBDLLHOOKSTRUCT* keydata = (KBDLLHOOKSTRUCT*)l_param;
     WPARAM key = keydata->vkCode;
     LPARAM press_type = w_param;
-    
+
 #ifdef OVERLAY_DEBUG
     std::cout << "VK pressed:  " << key << "\n";
     std::cout << "-> VK char:  " << (char)key << "\n";
