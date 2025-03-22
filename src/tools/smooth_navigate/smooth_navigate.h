@@ -18,6 +18,7 @@
 #include "core/input/ll_input.h"
 #include "core/input/hl_input.h"
 #include "utils/easing_functions.h"
+#include "utils/vec.h"
 
 namespace smooth_navigate
 {
@@ -37,12 +38,11 @@ struct SmoothInput
     struct
     {
         bool on;
+        Vec2<float> v_position;
         double progress;    // range [0, 1]
-        signed dir;         // 1 = up, -1 = down
+        int dir[2];         // 1 = up, -1 = down
         double mod;         // modifier in use
     } state;
-
-    
 };
 
 class SmoothNavigate : public ITool
@@ -51,9 +51,13 @@ private:
     SmoothInput m_scroll;
     SmoothInput m_move; 
 
-    std::atomic<bool> m_thread_active = false;
+    std::thread m_scroll_thread;
+    std::thread m_move_thread;
+
     std::mutex m_scroll_mutex;
-    std::condition_variable m_scroll_cv;
+    std::condition_variable m_cv;
+
+    bool m_kill_threads = false;
 
     enum Action
     {
@@ -74,14 +78,22 @@ private:
 public:
     SmoothNavigate();
     ~SmoothNavigate();
-    
+
     int run() override;
     void toggle(bool b) override;
     bool CALLBACK keyboard_hook_listener(WPARAM w_param, LPARAM l_param);
 
 private:
+    void scroll_thread();
+    void move_thread();
+
     void start_scroll();
     void end_scroll();
+
+    void start_move();
+
+    bool scrolling();
+    bool moving();
 };
 
 // Expose functions for the DLL

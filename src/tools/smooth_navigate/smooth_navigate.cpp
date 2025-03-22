@@ -5,17 +5,17 @@ namespace smooth_navigate
 
 SmoothNavigate::SmoothNavigate()
 {
-    m_scroll.config.frequency = 144;
+    m_scroll.config.frequency = 240;
     m_scroll.config.interval = static_cast<int>(1.0 / m_scroll.config.frequency * 1000);
-    m_scroll.config.step = 0.1;
-    m_scroll.config.mod_factor = 3;
-    m_scroll.config.ease_in = 0.2;
-    m_scroll.config.ease_out = 0.15;
+    m_scroll.config.step = 0.05;
+    m_scroll.config.mod_factor = 2;
+    m_scroll.config.ease_in = 0.25;
+    m_scroll.config.ease_out = 0.12;
 
-    m_move.config.frequency = 60;
+    m_move.config.frequency = 144;
     m_move.config.interval = static_cast<int>(1.0 / m_move.config.frequency * 1000);
-    m_move.config.step = 0.1;
-    m_move.config.mod_factor = 2;
+    m_move.config.step = 3;
+    m_move.config.mod_factor = 2.5;
     m_move.config.ease_in = 0.2;
     m_move.config.ease_out = 0; // No easing out
 
@@ -39,10 +39,25 @@ SmoothNavigate::SmoothNavigate()
         {SLOW_SCROLL, 'Z'},
         {FAST_SCROLL, 'X'}
     };
+
+    m_scroll_thread = std::thread(&SmoothNavigate::scroll_thread, this);
+    m_move_thread = std::thread(&SmoothNavigate::move_thread, this);
 }
 
 SmoothNavigate::~SmoothNavigate()
 {
+    m_kill_threads = true;
+    m_cv.notify_all(); // Wake up scroll thread
+
+    if (m_scroll_thread.joinable())
+    {
+        m_scroll_thread.join();
+    }
+
+    if (m_move_thread.joinable())
+    {
+        m_move_thread.join();
+    }
 }
 
 int SmoothNavigate::run()
@@ -72,9 +87,7 @@ bool CALLBACK SmoothNavigate::keyboard_hook_listener(WPARAM w_param, LPARAM l_pa
     KBDLLHOOKSTRUCT* keydata = reinterpret_cast<KBDLLHOOKSTRUCT*>(l_param);
     WPARAM key = keydata->vkCode;
 
-    static int counter = 0;
-
-    // Check is key is valid and save the enum
+    // Check if key is in use
     bool valid_key = false;
     for (const auto& pair : m_keys)
     {
@@ -88,113 +101,120 @@ bool CALLBACK SmoothNavigate::keyboard_hook_listener(WPARAM w_param, LPARAM l_pa
     if (!valid_key)
         return false;
 
-    if (w_param == WM_KEYDOWN || w_param == WM_SYSKEYDOWN)
+    // Process listed keys
+    switch (w_param)
     {
-        if (LLInput::keydown(m_keys[ACTIVATE]))
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+        if (key == m_keys[ACTIVATE])
         {
-            if (key == m_keys[SCROLL_UP] || key == m_keys[SCROLL_DOWN])
+            POINT p;
+            if (::GetCursorPos(&p))
             {
-                if (!m_scroll.state.on && !m_thread_active)
-                {
-                    m_scroll.state.on = true;
-                    std::cout << "Thread Started: " << counter++ << "\n";
-                    std::thread(&SmoothNavigate::start_scroll, this).detach();
-                }
+                m_move.state.v_position.x = p.x;
+                m_move.state.v_position.y = p.y;
             }
-
-            // else if (key == m_keys[CLICK])
-            // {
-            //     POINT p;
-            //     if (::GetCursorPos(&p))
-            //     {
-            //         HLInput::click_async(1, p.x, p.y, false);
-            //     }
-            // }
-            // else // Move keys
-            // {
-                // while (
-                //     LLInput::keys[m_keys[MOVE_LEFT]]  ||
-                //     LLInput::keys[m_keys[MOVE_RIGHT]] ||
-                //     LLInput::keys[m_keys[MOVE_UP]]    ||
-                //     LLInput::keys[m_keys[MOVE_DOWN]]
-                // )
-                // {
-                //     POINT p;
-
-                //     if (::GetCursorPos(&p))
-                //     {
-                //         int dx = 0;
-                //         int dy = 0;
-                //         dx -= key == m_keys[MOVE_LEFT];
-                //         dx += key == m_keys[MOVE_RIGHT];
-                //         dy -= key == m_keys[MOVE_UP];
-                //         dy += key == m_keys[MOVE_DOWN];
-                //         HLInput::move_cursor(p.x + dx, p.y + dy);
-                //     }
-                // }
-            // }
 
             return true;
         }
-    }
-    else if (w_param == WM_KEYUP || w_param == WM_SYSKEYUP)
-    {
+
         if (key == m_keys[SCROLL_UP] || key == m_keys[SCROLL_DOWN])
         {
-            // If both keys were down we shouldn't stop scrolling
-            if (LLInput::keydown(m_keys[SCROLL_UP]) || LLInput::keydown(m_keys[SCROLL_DOWN]))
+            if (LLInput::keydown(m_keys[ACTIVATE]))
             {
+                m_cv.notify_all(); // Wake up scroll thread
                 return true;
             }
+        }
 
-            m_scroll.state.on = false;
+        if (key == m_keys[MOVE_UP] ||
+            key == m_keys[MOVE_DOWN] ||
+            key == m_keys[MOVE_LEFT] ||
+            key == m_keys[MOVE_RIGHT]
+        )
+        {
+            if (LLInput::keydown(m_keys[ACTIVATE]))
+            {
+                m_cv.notify_all(); // Wake up scroll thread
+                return true;
+            }
+        }
+
+        if (LLInput::keydown(m_keys[ACTIVATE])) // Move these out?
+        {
             return true;
         }
 
-        // If any valid keys are released while pressing the activator key block the release
+        return false;
+
+    // If any valid keys are released while pressing the activator key block the release
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
         if (LLInput::keydown(m_keys[ACTIVATE]))
         {
             return true;
         }
+
+    // No blocking
+    default:
+        return false;
     }
-    return false;
+}
+
+
+void SmoothNavigate::scroll_thread()
+{
+    while (!m_kill_threads)
+    {
+        ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+        start_scroll();
+        end_scroll();
+        ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_LOWEST);
+
+        std::unique_lock<std::mutex> lock(m_scroll_mutex);
+        m_cv.wait(lock, [&]() { return scrolling() || m_kill_threads; });
+    }
+}
+
+void SmoothNavigate::move_thread()
+{
+    while (!m_kill_threads)
+    {
+        start_move();
+
+        std::unique_lock<std::mutex> lock(m_scroll_mutex);
+        m_cv.wait(lock, [&]() { return moving() || m_kill_threads; });
+    }
 }
 
 void SmoothNavigate::start_scroll()
 {
-    m_thread_active = true;
-
     const auto t0 = std::chrono::steady_clock::now();
     auto next_tick = t0;
 
-    double p0 = m_scroll.state.progress;
-    double ease_time_left = m_scroll.config.ease_in - p0 * m_scroll.config.ease_in;
+    const double p0 = m_scroll.state.progress;
+    double t_ease_in = m_scroll.config.ease_in - p0 * m_scroll.config.ease_in;
 
-    double dt;
-    while (m_scroll.state.on && LLInput::keydown(m_keys[ACTIVATE]))
+    double dt = 0;
+    while (scrolling() && LLInput::keydown(m_keys[ACTIVATE]))
     {
         dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
-        // p in range [0, 1]
-
-        m_scroll.state.progress = p0 + std::min(dt / ease_time_left, 1 - p0);
-
-        std::cout << "Progess: " << m_scroll.state.progress << "\n";
-
+        m_scroll.state.progress = p0 + std::min(dt / t_ease_in, 1 - p0);
         m_scroll.state.mod = LLInput::keydown(m_keys[FAST_SCROLL]) ? m_scroll.config.mod_factor
             : LLInput::keydown(m_keys[SLOW_SCROLL]) ? 1.0 / m_scroll.config.mod_factor
             : 1.0;
-        m_scroll.state.dir = LLInput::keydown(m_keys[SCROLL_DOWN]) ? -1 : 1;
-        
-        double amount = m_scroll.config.step * easing::ease_in_out_sine(m_scroll.state.progress) * m_scroll.state.mod * m_scroll.state.dir;
-        HLInput::scroll(amount);
+        m_scroll.state.dir[0] = LLInput::keydown(m_keys[SCROLL_DOWN]) ? -1 : 1;
+
+        HLInput::scroll(
+            easing::ease_in_out_sine(m_scroll.state.progress) * m_scroll.config.step *
+            m_scroll.state.mod * m_scroll.state.dir[0]
+        );
 
         next_tick += std::chrono::milliseconds(m_scroll.config.interval);
         std::unique_lock<std::mutex> lock(m_scroll_mutex);
-        m_scroll_cv.wait_until(lock, next_tick, [&]() { return !m_scroll.state.on; });
+        m_cv.wait_until(lock, next_tick, [&]() { return !scrolling(); });
     }
-    
-    end_scroll();
 }
 
 void SmoothNavigate::end_scroll()
@@ -202,33 +222,80 @@ void SmoothNavigate::end_scroll()
     const auto t0 = std::chrono::steady_clock::now();
     auto next_tick = t0;
 
-    double p0 = m_scroll.state.progress;
-    double ease_time_left = p0 * m_scroll.config.ease_out;
+    const double p0 = m_scroll.state.progress;
+    double t_ease_out = p0 * m_scroll.config.ease_out;
 
-    double dt, p;
-    while (true)
+    double dt = 0;
+    while (!scrolling() && dt < t_ease_out)
     {
         dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
-        if (dt > ease_time_left || m_scroll.state.on)
+        m_scroll.state.progress = p0 - std::min(dt / t_ease_out, p0);
+
+        HLInput::scroll(
+            easing::ease_out_sine(m_scroll.state.progress) * m_scroll.config.step *
+            m_scroll.state.mod * m_scroll.state.dir[0]
+        );
+
+        next_tick += std::chrono::milliseconds(m_scroll.config.interval);
+        std::unique_lock<std::mutex> lock(m_scroll_mutex);
+        m_cv.wait_until(lock, next_tick, [&]() { return scrolling(); });
+    }
+}
+
+void SmoothNavigate::start_move()
+{
+    const auto t0 = std::chrono::steady_clock::now();
+    auto next_tick = t0;
+
+    const double p0 = m_move.state.progress;
+    double t_ease_in = m_move.config.ease_in - p0 * m_move.config.ease_in;
+
+    double dt = 0;
+    while (moving() && LLInput::keydown(m_keys[ACTIVATE]))
+    {
+        dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+
+        m_move.state.progress = p0 + std::min(dt / t_ease_in, 1 - p0);
+        m_move.state.mod = LLInput::keydown(m_keys[FAST_SCROLL]) ? m_move.config.mod_factor
+            : LLInput::keydown(m_keys[SLOW_SCROLL]) ? 1.0 / m_move.config.mod_factor
+            : 1.0;
+
+        POINT p;
+        if (::GetCursorPos(&p))
         {
-            break;
+            int dirx = LLInput::keydown(m_keys[MOVE_RIGHT]) - LLInput::keydown(m_keys[MOVE_LEFT]);
+            int diry = LLInput::keydown(m_keys[MOVE_DOWN]) - LLInput::keydown(m_keys[MOVE_UP]);
+
+            m_move.state.dir[0] = dirx;
+            m_move.state.dir[1] = dirx;
+
+            auto& pos = m_move.state.v_position;
+
+            double normalize = std::abs(dirx) && std::abs(diry) ? 1 / 1.41421 : 1;
+
+            pos.x += dirx * m_move.config.step * m_move.state.mod * normalize;
+            pos.y += diry * m_move.config.step * m_move.state.mod * normalize;
+
+            HLInput::move_cursor(pos.x, pos.y);
         }
 
-        m_scroll.state.progress = p0 - std::min(dt / ease_time_left, p0);
-
-        std::cout << "Progess: " << m_scroll.state.progress << "\n";
-
-        double amount = m_scroll.config.step * easing::ease_out_sine(m_scroll.state.progress) * m_scroll.state.mod * m_scroll.state.dir;
-        HLInput::scroll(amount);
-        next_tick += std::chrono::milliseconds(m_scroll.config.interval);
-
+        next_tick += std::chrono::milliseconds(m_move.config.interval);
         std::unique_lock<std::mutex> lock(m_scroll_mutex);
-        m_scroll_cv.wait_until(lock, next_tick, [&]() { return m_scroll.state.on; });
-    }
+        m_cv.wait_until(lock, next_tick, [&]() { return !moving(); });
 
-    m_thread_active = false;
-    std::cout << "Thread Killed\n";
+    }
+}
+
+bool SmoothNavigate::scrolling()
+{
+    return LLInput::keys[m_keys[SCROLL_UP]] || LLInput::keys[m_keys[SCROLL_DOWN]];
+}
+
+bool SmoothNavigate::moving()
+{
+    return LLInput::keys[m_keys[MOVE_UP]]   || LLInput::keys[m_keys[MOVE_DOWN]] ||
+           LLInput::keys[m_keys[MOVE_LEFT]] || LLInput::keys[m_keys[MOVE_RIGHT]];
 }
 
 } // namespace smooth_navigate
