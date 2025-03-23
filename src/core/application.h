@@ -8,12 +8,14 @@
 #include <shellscalingapi.h>
 
 #include <iostream>
+#include <filesystem>
 #include <fstream>
 #include <thread>
 #include <vector>
 #include <unordered_map>
 #include <cwchar>
 
+#include "event_types.h"
 #include "tool_interface.h"
 #include "hotkeys/hotkey_manager.h"
 #include "input/ll_input.h"
@@ -40,13 +42,7 @@ private:
     };
 
     static std::vector<ToolStruct> m_loaded_tools;
-
-    enum Actions
-    {
-        QUIT
-    };
-
-    static std::unordered_map<int, int> m_hotkey_ids;
+    static std::unordered_map<Event, int> m_hotkey_ids;
 
 public:
     CoreApplication(HINSTANCE h_instance);
@@ -56,6 +52,7 @@ public:
     static void shutdown();
 
     static void load_tool(const std::wstring& dll_path, const std::wstring& tool_name);
+    static void load_tools();
     static void unload_tools();
 
 private:

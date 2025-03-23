@@ -43,15 +43,17 @@ Overlay::Overlay()
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
     ::SetWindowLongPtr(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
-    m_keybinds[HIDE] = VK_ESCAPE;
-    m_keybinds[REMOVE_INPUT] = VK_BACK;
-    m_keybinds[CLEAR_INPUTS] = VK_RETURN;
-    m_keybinds[MOVE_MOUSE]   = L'C';
-    m_keybinds[DOUBLE_CLICK] = L'V';
-    m_keybinds[TRIPLE_CLICK] = L'N';
-    m_keybinds[QUAD_CLICK]   = L'M';
+    m_keybinds = {
+        {Event::HIDE,          VK_ESCAPE},
+        {Event::REMOVE,        VK_BACK},
+        {Event::CLEAR,         VK_RETURN},
+        {Event::MOVE,          L'C'},
+        {Event::DOUBLE_CLICK,  L'V'},
+        {Event::TRIPLE_CLICK,  L'N'},
+        {Event::QUAD_CLICK,    L'M'}
+    };
 
-    m_hotkeys[ACTIVATE] = HotkeyManager::register_hotkey(
+    m_hotkeys[Event::ACTIVATE] = HotkeyManager::register_hotkey(
         m_hwnd, MOD_CONTROL, VK_OEM_PERIOD
     );
 }
@@ -76,7 +78,7 @@ int Overlay::run()
 
 void Overlay::shutdown()
 {
-    HotkeyManager::unregister_hotkey(m_hwnd, m_hotkeys[ACTIVATE]);
+    HotkeyManager::unregister_hotkey(m_hwnd, m_hotkeys[Event::ACTIVATE]);
     ::PostQuitMessage(0);
 }
 
@@ -215,18 +217,18 @@ bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
     auto& kb = m_keybinds;
 
     // Special keys
-    if (key == kb[Action::HIDE])
+    if (key == kb[Event::HIDE])
     {
         toggle(false);
         return true;
     }
-    else if (key == kb[Action::REMOVE_INPUT])
+    else if (key == kb[Event::REMOVE])
     {
         undo_input();
         repaint();
         return true;        
     }
-    else if (key == kb[Action::CLEAR_INPUTS])
+    else if (key == kb[Event::CLEAR])
     {
         clear_input();
         repaint();
@@ -275,10 +277,10 @@ int Overlay::enter_input(wchar_t c)
 
         clear_input();
 
-        if (c == m_keybinds[Action::MOVE_MOUSE])   return INT32_MAX;
-        if (c == m_keybinds[Action::DOUBLE_CLICK]) return 2;
-        if (c == m_keybinds[Action::TRIPLE_CLICK]) return 3;
-        if (c == m_keybinds[Action::QUAD_CLICK])   return 4;
+        if (c == m_keybinds[Event::MOVE])   return INT32_MAX;
+        if (c == m_keybinds[Event::DOUBLE_CLICK]) return 2;
+        if (c == m_keybinds[Event::TRIPLE_CLICK]) return 3;
+        if (c == m_keybinds[Event::QUAD_CLICK])   return 4;
         return 1;
     }
 
@@ -359,7 +361,7 @@ LRESULT Overlay::handle_message(UINT msg, WPARAM w_param, LPARAM l_param)
 {
     switch (msg) {
     case WM_HOTKEY:
-        if (w_param == m_hotkeys[ACTIVATE])
+        if (w_param == m_hotkeys[Event::ACTIVATE])
         {
             // Prevent control from getting stuck. For whatever reason
             // right mod keys won't release. Make dynamic later.
@@ -512,7 +514,7 @@ void Overlay::process_key(WPARAM key, LPARAM details)
 
     if (result > 0)
     {
-        HLInput::click_async(result, m_click_pos.x, m_click_pos.y, HLInput::is_key_down(VK_SHIFT));
+        HLInput::click_async(result, m_click_pos.x, m_click_pos.y, HLInput::keydown(VK_SHIFT));
         toggle(false);
         return;
     }

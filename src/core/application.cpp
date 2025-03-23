@@ -5,7 +5,7 @@ WNDCLASSEXW CoreApplication::m_wcex;
 HWND CoreApplication::h_wnd = nullptr;
 
 std::vector<CoreApplication::ToolStruct> CoreApplication::m_loaded_tools;
-std::unordered_map<int, int> CoreApplication::m_hotkey_ids;
+std::unordered_map<Event, int> CoreApplication::m_hotkey_ids;
 
 CoreApplication::CoreApplication(HINSTANCE h_instance)
 {
@@ -37,11 +37,10 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
     );
     ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
 
-    m_hotkey_ids[QUIT] = HotkeyManager::register_hotkey(h_wnd, MOD_CONTROL | MOD_ALT, L'Q');
+    m_hotkey_ids[Event::QUIT] = HotkeyManager::register_hotkey(h_wnd, MOD_CONTROL | MOD_ALT, L'Q');
 
     load_config();
-    load_tool(L"tools\\libsmooth_navigate.dll", L"smooth_navigate");
-    load_tool(L"tools\\liboverlay.dll", L"overlay");
+    load_tools();
 }
 
 int CoreApplication::run()
@@ -69,18 +68,19 @@ void CoreApplication::shutdown()
 
 void CoreApplication::load_tool(const std::wstring& dll_path, const std::wstring& tool_name)
 {
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    std::cout << "Loading " << converter.to_bytes(tool_name) << ".dll...\n";
+    // std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    // converter.to_bytes(tool_name)
+    std::wcout << L"Loading " << tool_name << "...\n";
 
     ToolStruct ts;
     ts.h_dll = ::LoadLibraryW(dll_path.c_str());
     
     if (!ts.h_dll)
     {
-        std::cerr << "Failed to load DLL!" << std::endl;
+        std::wcerr << L"Failed to load DLL!" << std::endl;
         return;
     }
-    std::cout << "Loaded DLL!\n";
+    std::wcout << L"Loaded DLL!\n";
 
     ts.create_tool = (CreateToolFn)::GetProcAddress(ts.h_dll, "create_tool");
     ts.destroy_tool = (DestroyToolFn)::GetProcAddress(ts.h_dll, "destroy_tool");
@@ -92,6 +92,23 @@ void CoreApplication::load_tool(const std::wstring& dll_path, const std::wstring
 
         ts.tool_ptr->toggle(true);
         std::thread(&ITool::run, ts.tool_ptr).detach();
+    }
+}
+
+void CoreApplication::load_tools()
+{
+    wchar_t path_buffer[MAX_PATH];
+    ::GetModuleFileName(nullptr, path_buffer, MAX_PATH);
+    auto exe_path = std::filesystem::path(path_buffer).parent_path();
+
+    for (const auto& entry : std::filesystem::directory_iterator(exe_path / L"tools"))
+    {
+        if (entry.path().extension() == L".dll")
+        {
+            std::wstring dll_path = entry.path().wstring();
+            std::wstring tool_name = entry.path().filename();
+            load_tool(dll_path, tool_name);
+        }
     }
 }
 
@@ -130,7 +147,7 @@ LRESULT CALLBACK CoreApplication::wnd_proc(HWND h_wnd, UINT message, WPARAM w_pa
 
 void CoreApplication::process_hotkey(WPARAM w_param)
 {
-    if (w_param == m_hotkey_ids[QUIT])
+    if (w_param == m_hotkey_ids[Event::QUIT])
     {
         ::DestroyWindow(h_wnd);   // Send WM_DESTROY message
     }

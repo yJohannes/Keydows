@@ -2,11 +2,11 @@
 #define OVERLAY_H
 
 #include <windows.h>
-#undef DOUBLE_CLICK
-
-#include <unordered_map>
-#include <string>
 #include <iostream>
+#include <string>
+#include <unordered_map>
+
+#include "core/event_types.h"
 #include "core/tool_interface.h"
 #include "core/hotkeys/hotkey_manager.h"
 #include "core/input/hl_input.h"
@@ -38,23 +38,8 @@ private:
     HDC m_default_mem_dc;
     HBITMAP m_default_mem_bitmap;
 
-    enum Action
-    {
-        // Keybinds
-        HIDE,
-        REMOVE_INPUT,
-        CLEAR_INPUTS,
-        MOVE_MOUSE,
-        DOUBLE_CLICK,
-        TRIPLE_CLICK,
-        QUAD_CLICK,
-
-        // Hotkeys
-        ACTIVATE
-    };
-
-    std::unordered_map<Action, int> m_keybinds;
-    std::unordered_map<Action, int> m_hotkeys;
+    std::unordered_map<Event, int> m_keybinds;
+    std::unordered_map<Event, int> m_hotkeys;
 
 public:
     Overlay();
@@ -97,7 +82,6 @@ private:
 
     // Key Events
     void process_key(WPARAM key, LPARAM details);
-    // void process_hotkey(HotkeyID id);
 };
 
 // Expose functions for the DLL
