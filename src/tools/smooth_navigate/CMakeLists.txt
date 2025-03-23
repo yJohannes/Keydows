@@ -11,6 +11,7 @@ list(APPEND TOOL_SRC
 add_library(smooth_navigate SHARED ${TOOL_SRC})
 target_compile_definitions(smooth_navigate PRIVATE BUILD_TOOL)
 target_include_directories(smooth_navigate PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(smooth_navigate PRIVATE winmm)
 
 set_target_properties(smooth_navigate PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tools
