@@ -1,5 +1,6 @@
 - IDEAS:
 - something better than locking the § key
+- System tray icon
 
 - FIX:
 - Can't click while § key is down
@@ -7,6 +8,7 @@
 
 - COREAPP:
 - GUI
+- move toolstruct
 
 - OVERLAY:
 - Use VK instead of wchars 
@@ -15,8 +17,8 @@
 - Make holding input key hold click and arrows move the cursor
 
 - SMOOTH NAVIGATE:
-- § + enter click
 - Alt drag type of thing
 
 - LINKS:
 - https://www.toptal.com/developers/keycode
+- https://infinite-scroll.com/options.html
