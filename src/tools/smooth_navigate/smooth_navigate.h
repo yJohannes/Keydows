@@ -1,6 +1,3 @@
-// Test site
-// https://infinite-scroll.com/options.html
-
 #ifndef SMOOTH_NAVIGATE_H
 #define SMOOTH_NAVIGATE_H
 
@@ -14,6 +11,7 @@
 #include <unordered_map>
 
 #include "defines.h"
+#include "core/event_types.h"
 #include "core/tool_interface.h"
 #include "core/input/ll_input.h"
 #include "core/input/hl_input.h"
@@ -23,13 +21,18 @@
 namespace smooth_navigate
 {
 
+using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+
 struct SmoothInput
 {
+    std::thread thread;
+    std::mutex mutex;
+    std::condition_variable cv;
+
     struct
     {
         double frequency;
-        int    interval;
-        double step;
+        double base_step;
         double mod_factor;
         double ease_in;
         double ease_out;
@@ -37,12 +40,49 @@ struct SmoothInput
 
     struct
     {
-        bool on;
-        Vec2<float> v_position;
-        double progress;    // range [0, 1]
-        int dir[2];         // 1 = up, -1 = down
-        double mod;         // modifier in use
+        TimePoint t0;
+        TimePoint next_tick;
+        double dt;
+        Vec2<double> position;
+        Vec2<double> dir;
+        double p0;
+        double progress;    // in range [0, 1]
+        double step;
+        double mod;
     } state;
+
+    void reset_time()
+    {
+        state.t0 = std::chrono::steady_clock::now();
+        state.next_tick = state.t0;
+        state.dt = 0;
+    }
+    
+    void save_progress()
+    {
+        state.p0 = state.progress;
+    }
+
+    void update()
+    {
+        state.dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.t0).count();
+    }
+
+    void end()
+    {
+
+    }
+
+    void next_tick(std::function<bool()> predicate)
+    {
+        int interval = static_cast<int>(1.0 / config.frequency * 1000);
+        state.next_tick += std::chrono::milliseconds(interval);
+
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            cv.wait_until(lock, state.next_tick, [&]() { return predicate(); });
+        }
+    }
 };
 
 class SmoothNavigate : public ITool
@@ -51,30 +91,11 @@ private:
     SmoothInput m_scroll;
     SmoothInput m_move; 
 
-    std::thread m_scroll_thread;
-    std::thread m_move_thread;
-
-    std::mutex m_scroll_mutex;
-    std::condition_variable m_cv;
-
     bool m_kill_threads = false;
 
-    enum Action
-    {
-        ACTIVATE,
-        CLICK,
-        MOVE_UP,
-        MOVE_DOWN,
-        MOVE_LEFT,
-        MOVE_RIGHT,
-        SCROLL_UP,
-        SCROLL_DOWN,
-        SIDEWAYS_SCROLL,
-        SLOW_SCROLL,
-        FAST_SCROLL
-    };
+    std::unordered_map<Event, int> m_keys;
 
-    std::unordered_map<Action, int> m_keys;
+    bool m_toggled_active = false;
 public:
     SmoothNavigate();
     ~SmoothNavigate();
