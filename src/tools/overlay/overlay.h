@@ -22,6 +22,8 @@ class Overlay : public ITool
 private:
     WNDCLASSEX m_wcex;
     HWND m_hwnd;
+    HDC m_default_mem_dc;
+    HBITMAP m_default_mem_bitmap;
 
     POINT m_click_pos;
     SIZE m_size;
@@ -29,14 +31,12 @@ private:
 
     int m_block_width;
     int m_block_height;
-    
+
     wchar_t m_input_char_1;
     wchar_t m_input_char_2;
+
     std::wstring m_charset = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
     std::wstring m_click_direction_charset = L"WSADQEOP"; // U, D, L, R, TL, TR, BL, BR
-
-    HDC m_default_mem_dc;
-    HBITMAP m_default_mem_bitmap;
 
     std::unordered_map<Event, int> m_keybinds;
     std::unordered_map<Event, int> m_hotkeys;
@@ -58,7 +58,6 @@ public:
     void undo_input();
     void clear_input();
 
-    // Setters & Getters
     void set_size(int x, int y);
     void set_resolution(int x, int y);
     void set_charset(const wchar_t* charset);
@@ -80,7 +79,6 @@ private:
     void render_overlay_bitmap(HDC h_dc);
     void delete_cached_default_overlay();
 
-    // Key Events
     void process_key(WPARAM key, LPARAM details);
 };
 
