@@ -10,7 +10,10 @@ struct Vec2
     T y;
 
     constexpr Vec2() : x(0), y(0) {}
+    constexpr Vec2(T val) : x(val), y(val) {}
     constexpr Vec2(T _x, T _y) : x(_x), y(_y) {}
+
+    constexpr void operator=(T scalar) { x = scalar; y = scalar; };
 
     constexpr Vec2 operator-() const { return Vec2(-x, -y); }
 
