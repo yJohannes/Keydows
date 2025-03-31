@@ -40,48 +40,44 @@ struct SmoothInput
 
     struct
     {
-        TimePoint t0;
         TimePoint next_tick;
+        TimePoint last_tick;
         double dt;
         Vec2<double> position;
         Vec2<double> dir;
-        double p0;
-        double progress;    // in range [0, 1]
+        Vec2<double> progress;    // in range [0, 1]
         double step;
         double mod;
     } state;
 
     void reset_time()
     {
-        state.t0 = std::chrono::steady_clock::now();
-        state.next_tick = state.t0;
-        state.dt = 0;
-    }
-    
-    void save_progress()
-    {
-        state.p0 = state.progress;
+        const auto t = std::chrono::steady_clock::now();
+        state.last_tick = t;
+        state.next_tick = t;
+        state.dt = 0.0;
     }
 
     void update()
     {
-        state.dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.t0).count();
-    }
-
-    void end()
-    {
-
+        state.dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.last_tick).count();
     }
 
     void next_tick(std::function<bool()> predicate)
     {
         int interval = static_cast<int>(1.0 / config.frequency * 1000);
+        state.last_tick = state.next_tick;
         state.next_tick += std::chrono::milliseconds(interval);
 
         {
             std::unique_lock<std::mutex> lock(mutex);
             cv.wait_until(lock, state.next_tick, [&]() { return predicate(); });
         }
+    }
+
+    void stop()
+    {
+        state.progress = 0.0;
     }
 };
 
@@ -91,11 +87,11 @@ private:
     SmoothInput m_scroll;
     SmoothInput m_move; 
 
+    bool m_toggled_active = false;
     bool m_kill_threads = false;
 
     std::unordered_map<Event, int> m_keys;
 
-    bool m_toggled_active = false;
 public:
     SmoothNavigate();
     ~SmoothNavigate();
@@ -109,8 +105,6 @@ private:
     void move_thread();
 
     void start_scroll();
-    void end_scroll();
-
     void start_move();
 
     bool scrolling();

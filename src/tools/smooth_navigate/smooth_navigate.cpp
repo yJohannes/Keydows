@@ -173,12 +173,12 @@ bool CALLBACK SmoothNavigate::keyboard_hook_listener(WPARAM w_param, LPARAM l_pa
             {
                 HLInput::set_mouse(MK_RBUTTON, true);
             }
-            
+
             return true;
         }
 
         if (key == m_keys[Event::FAST_MODE] || key == m_keys[Event::SLOW_MODE])
-        {            
+        {
             return true;
         }
 
@@ -199,19 +199,19 @@ bool CALLBACK SmoothNavigate::keyboard_hook_listener(WPARAM w_param, LPARAM l_pa
         {
             return false;
         }
-    
+
         if (key == m_keys[Event::LEFT_CLICK])
         {
             HLInput::set_mouse(MK_LBUTTON, false);
             return true;
         }
-        
+
         if (key == m_keys[Event::RIGHT_CLICK])
         {
             HLInput::set_mouse(MK_RBUTTON, false);
             return true;
         }
-        
+
         if (LLInput::keydown(m_keys[Event::ACTIVATE]))
         {
             return true;
@@ -230,7 +230,6 @@ void SmoothNavigate::scroll_thread()
     {
         ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
         start_scroll();
-        end_scroll();
         ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
         {
@@ -259,66 +258,62 @@ void SmoothNavigate::start_scroll()
 {
     m_scroll.reset_time();
 
-    const double p0 = m_scroll.state.progress;
-    double t_ease_in = m_scroll.config.ease_in - p0 * m_scroll.config.ease_in;
-
     while (scrolling() && m_toggled_active)
     {
         m_scroll.update();
 
-        m_scroll.state.progress = p0 + std::min(m_scroll.state.dt / t_ease_in, 1 - p0);
+        double dp = m_scroll.state.dt / m_scroll.config.ease_in;
+        m_scroll.state.progress.y = std::min(m_scroll.state.progress.y + dp, 1.0);
+
+        std::wcout << "Progress:  " << m_scroll.state.progress.y << "\n";
+
+        m_scroll.state.dir.y = LLInput::keydown(m_keys[Event::SCROLL_UP]) - LLInput::keydown(m_keys[Event::SCROLL_DOWN]);
         m_scroll.state.mod = std::pow(
             m_scroll.config.mod_factor,
             LLInput::keydown(m_keys[Event::FAST_MODE]) - LLInput::keydown(m_keys[Event::SLOW_MODE])
         );
-        m_scroll.state.dir.x = LLInput::keydown(m_keys[Event::SCROLL_UP]) - LLInput::keydown(m_keys[Event::SCROLL_DOWN]);
 
         HLInput::scroll(
-            easing::ease_in_out_sine(m_scroll.state.progress) * m_scroll.state.step *
-            m_scroll.state.mod * m_scroll.state.dir.x, false
+            easing::ease_in_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
+            m_scroll.state.mod * m_scroll.state.dir.y, false
         );
 
         m_scroll.next_tick([&]() { return !scrolling(); });
     }
-}
 
-void SmoothNavigate::end_scroll()
-{
     m_scroll.reset_time();
 
-    const double p0 = m_scroll.state.progress;
-    double t_ease_out = p0 * m_scroll.config.ease_out;
-
-    auto& t0 = m_scroll.state.t0;
-    auto& dt = m_scroll.state.dt;
-    while (!scrolling() && m_scroll.state.dt < t_ease_out)
+    while (!scrolling() && m_scroll.state.progress.y > 0)
     {
         m_scroll.update();
-        m_scroll.state.progress = p0 - std::min(dt / t_ease_out, p0);
+
+        double dp = m_scroll.state.dt / m_scroll.config.ease_out;
+        m_scroll.state.progress.y = std::max(m_scroll.state.progress.y - dp, 0.0);
+
+        std::wcout << "Progress: " << m_scroll.state.progress.y << "\n";
 
         HLInput::scroll(
-            easing::ease_out_sine(m_scroll.state.progress) * m_scroll.state.step *
-            m_scroll.state.mod * m_scroll.state.dir.x, false
+            easing::ease_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
+            m_scroll.state.mod * m_scroll.state.dir.y, false
         );
 
         m_scroll.next_tick([&]() { return scrolling(); });
     }
+
+    m_scroll.stop();
 }
 
 void SmoothNavigate::start_move()
 {
     m_move.reset_time();
 
-    const double p0 = m_move.state.progress;
-    double t_ease_in = (1 - p0) * m_move.config.ease_in;
-    // double t_ease_in = m_move.config.ease_in - p0 * m_move.config.ease_in;
-
-    auto& dt = m_move.state.dt;
     while (moving() && m_toggled_active)
     {
         m_move.update();
 
-        m_move.state.progress = p0 + std::min(dt / t_ease_in, 1 - p0);
+        double dp = m_move.state.dt / m_move.config.ease_in;
+        m_move.state.progress.y = std::min(m_move.state.progress.y + dp, 1.0);
+
         m_move.state.mod = std::pow(m_move.config.mod_factor, LLInput::keydown(m_keys[Event::FAST_MODE]) - LLInput::keydown(m_keys[Event::SLOW_MODE])); 
 
         POINT p;
