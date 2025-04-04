@@ -31,6 +31,8 @@ struct Vec2
 
     constexpr bool operator==(const Vec2& v) const { return x == v.x && y == v.y; }
     constexpr bool operator!=(const Vec2& v) const { return !(*this == v); }
+    
+    constexpr bool is_zero() const { return x == T{} && y == T{}; }
 
     constexpr T length() const { return std::sqrt(x * x + y * y); }
     constexpr T length_squared() const { return x * x + y * y; }
