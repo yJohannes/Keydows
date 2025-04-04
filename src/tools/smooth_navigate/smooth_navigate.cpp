@@ -23,7 +23,6 @@ SmoothNavigate::SmoothNavigate()
     m_move.state.progress = 0.0;
     m_move.state.step = m_move.config.base_step;
 
-
     m_keys = {
         {Event::ACTIVATE,      220},      // §
         {Event::ACTIVATE_MOD,  VK_MENU},
@@ -42,6 +41,20 @@ SmoothNavigate::SmoothNavigate()
         {Event::FAST_MODE,     L'C'},
         {Event::SLOW_MODE,     L'V'}
     };
+
+    m_scroll.keys.up = m_keys[Event::SCROLL_UP];
+    m_scroll.keys.down = m_keys[Event::SCROLL_DOWN];
+    m_scroll.keys.left = m_keys[Event::SCROLL_LEFT];
+    m_scroll.keys.right = m_keys[Event::SCROLL_RIGHT];
+    m_scroll.keys.fast = m_keys[Event::FAST_MODE];
+    m_scroll.keys.slow = m_keys[Event::SLOW_MODE];
+
+    m_move.keys.up = m_keys[Event::MOVE_UP];
+    m_move.keys.down = m_keys[Event::MOVE_DOWN];
+    m_move.keys.left = m_keys[Event::MOVE_LEFT];
+    m_move.keys.right = m_keys[Event::MOVE_RIGHT];
+    m_move.keys.fast = m_keys[Event::FAST_MODE];
+    m_move.keys.slow = m_keys[Event::SLOW_MODE];
 
     m_scroll.thread = std::thread(&SmoothNavigate::scroll_thread, this);
     m_move.thread = std::thread(&SmoothNavigate::move_thread, this);
@@ -229,12 +242,52 @@ void SmoothNavigate::scroll_thread()
     while (!m_kill_threads)
     {
         ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-        start_scroll();
+        {
+            m_scroll.reset_time();
+
+            while (m_scroll.moving() && m_toggled_active)
+            {
+                m_scroll.update(true);
+
+                HLInput::scroll(
+                    easing::ease_in_out_sine(m_scroll.state.progress.x) * m_scroll.state.step *
+                    m_scroll.state.mod * m_scroll.state.dir.x, true
+                );
+
+                HLInput::scroll(
+                    easing::ease_in_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
+                    m_scroll.state.mod * m_scroll.state.dir.y, false
+                );
+
+                m_scroll.next_tick([&]() { return !m_scroll.moving(); });
+            }
+
+            m_scroll.reset_time();
+
+            while (!m_scroll.moving() && !m_scroll.state.progress.is_zero())
+            {
+                m_scroll.update(false);
+
+                HLInput::scroll(
+                    easing::ease_out_sine(m_scroll.state.progress.x) * m_scroll.state.step *
+                    m_scroll.state.mod * m_scroll.state.dir.x, true
+                );
+    
+                HLInput::scroll(
+                    easing::ease_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
+                    m_scroll.state.mod * m_scroll.state.dir.y, false
+                );
+
+                m_scroll.next_tick([&]() { return m_scroll.moving(); });
+            }
+
+            m_scroll.stop();
+        }
         ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
         {
             std::unique_lock<std::mutex> lock(m_scroll.mutex);
-            m_scroll.cv.wait(lock, [&]() { return scrolling() || m_kill_threads; });
+            m_scroll.cv.wait(lock, [&]() { return m_scroll.moving() || m_kill_threads; });
         }
     }
 }
@@ -249,105 +302,37 @@ void SmoothNavigate::move_thread()
 
         {
             std::unique_lock<std::mutex> lock(m_move.mutex);
-            m_move.cv.wait(lock, [&]() { return moving() || m_kill_threads; });
+            m_move.cv.wait(lock, [&]() { return m_move.moving() || m_kill_threads; });
         }
     }
-}
-
-void SmoothNavigate::start_scroll()
-{
-    m_scroll.reset_time();
-
-    while (scrolling() && m_toggled_active)
-    {
-        m_scroll.update();
-
-        double dp = m_scroll.state.dt / m_scroll.config.ease_in;
-        m_scroll.state.progress.y = std::min(m_scroll.state.progress.y + dp, 1.0);
-
-        std::wcout << "Progress:  " << m_scroll.state.progress.y << "\n";
-
-        m_scroll.state.dir.y = LLInput::keydown(m_keys[Event::SCROLL_UP]) - LLInput::keydown(m_keys[Event::SCROLL_DOWN]);
-        m_scroll.state.mod = std::pow(
-            m_scroll.config.mod_factor,
-            LLInput::keydown(m_keys[Event::FAST_MODE]) - LLInput::keydown(m_keys[Event::SLOW_MODE])
-        );
-
-        HLInput::scroll(
-            easing::ease_in_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
-            m_scroll.state.mod * m_scroll.state.dir.y, false
-        );
-
-        m_scroll.next_tick([&]() { return !scrolling(); });
-    }
-
-    m_scroll.reset_time();
-
-    while (!scrolling() && m_scroll.state.progress.y > 0)
-    {
-        m_scroll.update();
-
-        double dp = m_scroll.state.dt / m_scroll.config.ease_out;
-        m_scroll.state.progress.y = std::max(m_scroll.state.progress.y - dp, 0.0);
-
-        std::wcout << "Progress: " << m_scroll.state.progress.y << "\n";
-
-        HLInput::scroll(
-            easing::ease_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
-            m_scroll.state.mod * m_scroll.state.dir.y, false
-        );
-
-        m_scroll.next_tick([&]() { return scrolling(); });
-    }
-
-    m_scroll.stop();
 }
 
 void SmoothNavigate::start_move()
 {
     m_move.reset_time();
 
-    while (moving() && m_toggled_active)
+    while (m_move.moving() && m_toggled_active)
     {
-        m_move.update();
-
-        double dp = m_move.state.dt / m_move.config.ease_in;
-        m_move.state.progress.y = std::min(m_move.state.progress.y + dp, 1.0);
-
-        m_move.state.mod = std::pow(m_move.config.mod_factor, LLInput::keydown(m_keys[Event::FAST_MODE]) - LLInput::keydown(m_keys[Event::SLOW_MODE])); 
+        m_move.update(true);
 
         POINT p;
         if (::GetCursorPos(&p))
         {
-            int dirx = LLInput::keydown(m_keys[Event::MOVE_RIGHT]) - LLInput::keydown(m_keys[Event::MOVE_LEFT]);
-            int diry = LLInput::keydown(m_keys[Event::MOVE_DOWN]) - LLInput::keydown(m_keys[Event::MOVE_UP]);
-
-            m_move.state.dir.x = dirx;
-            m_move.state.dir.y = dirx;
+            double dirx = m_move.state.dir.x;
+            double diry = m_move.state.dir.y;
 
             auto& pos = m_move.state.position;
 
             double normalize = std::abs(dirx) && std::abs(diry) ? 1 / 1.41421 : 1;
 
             pos.x += dirx * m_move.state.step * m_move.state.mod * normalize;
-            pos.y += diry * m_move.state.step * m_move.state.mod * normalize;
+            pos.y -= diry * m_move.state.step * m_move.state.mod * normalize;
 
             HLInput::move_cursor(pos.x, pos.y);
         }
 
-        m_move.next_tick([&]() { return !moving(); });
+        m_move.next_tick([&]() { return !m_move.moving(); });
     }
-}
-
-bool SmoothNavigate::scrolling()
-{
-    return LLInput::keys[m_keys[Event::SCROLL_UP]] || LLInput::keys[m_keys[Event::SCROLL_DOWN]];
-}
-
-bool SmoothNavigate::moving()
-{
-    return LLInput::keys[m_keys[Event::MOVE_UP]]   || LLInput::keys[m_keys[Event::MOVE_DOWN]] ||
-           LLInput::keys[m_keys[Event::MOVE_LEFT]] || LLInput::keys[m_keys[Event::MOVE_RIGHT]];
 }
 
 } // namespace smooth_navigate
