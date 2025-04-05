@@ -23,8 +23,10 @@ struct Vec2
     constexpr Vec2 operator-(const Vec2& v) const { return Vec2(x - v.x, y - v.y); }
     Vec2& operator-=(const Vec2& v) { x -= v.x; y -= v.y; return *this; }
 
+    constexpr Vec2 operator*(const Vec2& v) const { return Vec2(x * v.x, y * v.y); }
     constexpr Vec2 operator*(T scalar) const { return Vec2(x * scalar, y * scalar); }
     Vec2& operator*=(T scalar) { x *= scalar; y *= scalar; return *this; }
+
 
     constexpr Vec2 operator/(T scalar) const { return Vec2(x / scalar, y / scalar); }
     Vec2& operator/=(T scalar) { x /= scalar; y /= scalar; return *this; }
