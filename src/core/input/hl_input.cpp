@@ -55,7 +55,6 @@ void HLInput::scroll(double delta, bool horizontal = false)
     ::SendInput(1, &input, sizeof(INPUT));
 }
 
-
 void HLInput::set_key(int vk_code, bool pressed)
 {
     INPUT input = {0};
