@@ -55,6 +55,33 @@ void HLInput::scroll(double delta, bool horizontal = false)
     ::SendInput(1, &input, sizeof(INPUT));
 }
 
+void HLInput::scroll(double dx, double dy)
+{
+    std::vector<INPUT> inputs;
+
+    if (std::abs(dx) > 0.0001) {
+        int d = static_cast<int>(dx * 120);
+        INPUT input = {};
+        input.type = INPUT_MOUSE;
+        input.mi.dwFlags = MOUSEEVENTF_HWHEEL;
+        input.mi.mouseData = d;
+        inputs.push_back(input);
+    }
+
+    if (std::abs(dy) > 0.0001) {
+        int d = static_cast<int>(dy * 120);
+        INPUT input = {};
+        input.type = INPUT_MOUSE;
+        input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+        input.mi.mouseData = d;
+        inputs.push_back(input);
+    }
+
+    if (!inputs.empty()) {
+        ::SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+    }
+}
+
 void HLInput::set_key(int vk_code, bool pressed)
 {
     INPUT input = {0};
