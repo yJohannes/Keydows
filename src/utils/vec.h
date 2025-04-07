@@ -27,19 +27,18 @@ struct Vec2
     constexpr Vec2 operator*(T scalar) const { return Vec2(x * scalar, y * scalar); }
     Vec2& operator*=(T scalar) { x *= scalar; y *= scalar; return *this; }
 
-
     constexpr Vec2 operator/(T scalar) const { return Vec2(x / scalar, y / scalar); }
     Vec2& operator/=(T scalar) { x /= scalar; y /= scalar; return *this; }
 
     constexpr bool operator==(const Vec2& v) const { return x == v.x && y == v.y; }
     constexpr bool operator!=(const Vec2& v) const { return !(*this == v); }
-    
+
     constexpr bool is_zero() const { return x == T{} && y == T{}; }
 
     constexpr T length() const { return std::sqrt(x * x + y * y); }
     constexpr T length_squared() const { return x * x + y * y; }
 
-    Vec2 unit_vector() const
+    constexpr Vec2 unit_vector() const
     {
         T len = length();
         return len > 0 ? *this / len : Vec2(0, 0);
