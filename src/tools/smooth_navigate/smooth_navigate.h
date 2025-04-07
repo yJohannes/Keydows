@@ -51,15 +51,23 @@ struct SmoothInput
 
     struct
     {
+        double dt = 0.0;
         TimePoint next_tick;
         TimePoint last_tick;
-        double dt = 0;
-        Vec2<double> position = 0;
-        Vec2<double> dir      = 0;
-        Vec2<double> progress = 0;  // in range [0, 1]
+        Vec2<bool> pressed;
+        Vec2<double> position;
+        Vec2<double> dir;
+        Vec2<double> progress;  // in range [0, 1]
         double step;
         double mod;
     } state;
+
+    SmoothInput()
+    {
+        const auto t = std::chrono::steady_clock::now();
+        state.last_tick = t;
+        state.next_tick = t;
+    }
 
     void reset_time()
     {
@@ -69,53 +77,39 @@ struct SmoothInput
         state.dt = 0.0;
     }
 
-    void update(bool active)
+    void update()
     {
+        state.pressed.x = LLInput::keydown(keys.up) || LLInput::keydown(keys.down);
+        state.pressed.y = LLInput::keydown(keys.left) || LLInput::keydown(keys.right);
+
         state.dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.last_tick).count();
         double dp = state.dt / config.ease_in;
 
-        if (active)
-        {
-            state.dir.x = LLInput::keydown(keys.right) - LLInput::keydown(keys.left);
-            state.dir.y = LLInput::keydown(keys.up) - LLInput::keydown(keys.down);
+        state.mod = std::pow(
+            config.mod_factor,
+            LLInput::keydown(keys.fast) - LLInput::keydown(keys.slow)
+        );
 
-            state.mod = std::pow(
-                config.mod_factor,
-                LLInput::keydown(keys.fast) - LLInput::keydown(keys.slow)
-            );
+        Vec2<int> dirs = {
+            LLInput::keydown(keys.right) - LLInput::keydown(keys.left),
+            LLInput::keydown(keys.up) - LLInput::keydown(keys.down)
+        };
 
-            state.progress.x = std::min(state.progress.x + dp * std::abs(state.dir.x), 1.0);
-            state.progress.y = std::min(state.progress.y + dp * std::abs(state.dir.y), 1.0);
+        // Stick dir after releasing
+        if (dirs.x != 0) state.dir.x = dirs.x;
+        if (dirs.y != 0) state.dir.y = dirs.y;
+//  * (2 * state.pressed.x - 1)
+//  * (2 * state.pressed.y - 1)
 
-            // HLInput::scroll(
-            //     easing::ease_in_out_sine(state.progress.x) * state.step *
-            //     state.mod * state.dir.x, true
-            // );
+        state.progress = {
+            std::clamp(state.progress.x + dp * (dirs.x != 0 ? 1 : -1), 0.0, 1.0),
+            std::clamp(state.progress.y + dp * (dirs.y != 0 ? 1 : -1), 0.0, 1.0)
+        };
 
-            // HLInput::scroll(
-            //     easing::ease_in_out_sine(state.progress.y) * state.step *
-            //     state.mod * state.dir.y, false
-            // );
-
-        }
-        else
-        {
-            state.progress.x = std::max(state.progress.x - dp, 0.0);
-            state.progress.y = std::max(state.progress.y - dp, 0.0);
-
-            // HLInput::scroll(
-            //     easing::ease_out_sine(state.progress.x) * state.step *
-            //     state.mod * state.dir.x, true
-            // );
-
-            // HLInput::scroll(
-            //     easing::ease_out_sine(state.progress.y) * state.step *
-            //     state.mod * state.dir.y, false
-            // );
-        }
-
+        // std::wcout << "Progress: \t" << state.progress.x << "\t" << state.progress.y << "\n";
     }
 
+    // Wait until next tick unless notified to check the condition
     void next_tick(std::function<bool()> predicate)
     {
         int interval_ms = static_cast<int>(1.0 / config.frequency * 1000);
@@ -139,6 +133,11 @@ struct SmoothInput
                LLInput::keys[keys.down] ||
                LLInput::keys[keys.left] ||
                LLInput::keys[keys.right];
+    }
+
+    Vec2<double> normalized_progress()
+    {
+        return state.progress.unit_vector(); 
     }
 };
 

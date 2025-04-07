@@ -9,7 +9,8 @@ SmoothNavigate::SmoothNavigate()
     m_scroll.config.base_step = 0.05;
     m_scroll.config.mod_factor = 2;
     m_scroll.config.ease_in = 0.25;
-    m_scroll.config.ease_out = 0.12;
+    m_scroll.config.ease_out = 1.00;
+    // m_scroll.config.ease_out = 0.12;
 
     m_move.config.frequency = 240;
     m_move.config.base_step = 1;     // Pixels
@@ -242,47 +243,43 @@ void SmoothNavigate::scroll_thread()
     while (!m_kill_threads)
     {
         ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+
+        m_scroll.reset_time();
+
+        while (
+            (m_scroll.moving() && m_toggled_active) ||                  // Moving
+            (!m_scroll.moving() && !m_scroll.state.progress.is_zero())  // Stopped moving
+        )
         {
-            m_scroll.reset_time();
+            m_scroll.update();
 
-            while (m_scroll.moving() && m_toggled_active)
+            Vec2<double> easing = {
+                easing::ease_in_out_sine(m_scroll.state.progress.x),
+                easing::ease_in_out_sine(m_scroll.state.progress.y)
+            };
+
+            Vec2<double> delta = easing * m_scroll.state.step * m_scroll.state.mod * m_scroll.state.dir;
+
+            std::wcout << "delta: \t" << delta.x << "\t" << delta.y << "\n";
+
+            // HLInput::scroll(delta.x, true);
+            // HLInput::scroll(delta.y, false);
+
+            HLInput::scroll(delta.x, delta.y);
+
+            // Switch predicate based on whether we're actively moving
+            if (m_scroll.moving() && m_toggled_active)
             {
-                m_scroll.update(true);
-
-                HLInput::scroll(
-                    easing::ease_in_out_sine(m_scroll.state.progress.x) * m_scroll.state.step *
-                    m_scroll.state.mod * m_scroll.state.dir.x, true
-                );
-
-                HLInput::scroll(
-                    easing::ease_in_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
-                    m_scroll.state.mod * m_scroll.state.dir.y, false
-                );
-
                 m_scroll.next_tick([&]() { return !m_scroll.moving(); });
             }
-
-            m_scroll.reset_time();
-
-            while (!m_scroll.moving() && !m_scroll.state.progress.is_zero())
+            else
             {
-                m_scroll.update(false);
-
-                HLInput::scroll(
-                    easing::ease_out_sine(m_scroll.state.progress.x) * m_scroll.state.step *
-                    m_scroll.state.mod * m_scroll.state.dir.x, true
-                );
-    
-                HLInput::scroll(
-                    easing::ease_out_sine(m_scroll.state.progress.y) * m_scroll.state.step *
-                    m_scroll.state.mod * m_scroll.state.dir.y, false
-                );
-
                 m_scroll.next_tick([&]() { return m_scroll.moving(); });
             }
-
-            m_scroll.stop();
         }
+
+        m_scroll.stop();
+
         ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
         {
@@ -313,7 +310,7 @@ void SmoothNavigate::start_move()
 
     while (m_move.moving() && m_toggled_active)
     {
-        m_move.update(true);
+        m_move.update();
 
         POINT p;
         if (::GetCursorPos(&p))
