@@ -79,8 +79,8 @@ struct SmoothInput
 
     void update()
     {
-        state.pressed.x = LLInput::keydown(keys.up) || LLInput::keydown(keys.down);
-        state.pressed.y = LLInput::keydown(keys.left) || LLInput::keydown(keys.right);
+        state.pressed.x = LLInput::keydown(keys.left) || LLInput::keydown(keys.right);
+        state.pressed.y = LLInput::keydown(keys.up) || LLInput::keydown(keys.down);
 
         state.dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.last_tick).count();
         double dp = state.dt / config.ease_in;
@@ -95,17 +95,13 @@ struct SmoothInput
             LLInput::keydown(keys.up) - LLInput::keydown(keys.down)
         };
 
-        // Stick dir after releasing
-        if (dirs.x != 0) state.dir.x = dirs.x;
-        if (dirs.y != 0) state.dir.y = dirs.y;
-//  * (2 * state.pressed.x - 1)
-//  * (2 * state.pressed.y - 1)
+        state.dir.x = dirs.x;
+        state.dir.y = dirs.y;
 
         state.progress = {
             std::clamp(state.progress.x + dp * (dirs.x != 0 ? 1 : -1), 0.0, 1.0),
             std::clamp(state.progress.y + dp * (dirs.y != 0 ? 1 : -1), 0.0, 1.0)
         };
-
         // std::wcout << "Progress: \t" << state.progress.x << "\t" << state.progress.y << "\n";
     }
 
