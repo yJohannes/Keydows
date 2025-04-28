@@ -1,6 +1,9 @@
 #include "overlay.h"
 #include "defines.h"
 
+namespace overlay
+{
+
 Overlay::Overlay()
     : m_input_char_1(NULL_CHAR)
     , m_input_char_2(NULL_CHAR)
@@ -37,20 +40,20 @@ Overlay::Overlay()
         this
     );
 
-    std::cout << "OVERLAY HWND: " << m_hwnd << "\n";
-
     ::SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
     ::SetWindowLongPtr(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
-    m_keybinds[HIDE] = VK_ESCAPE;
-    m_keybinds[REMOVE_INPUT] = VK_BACK;
-    m_keybinds[CLEAR_INPUTS] = VK_RETURN;
-    m_keybinds[MOVE_MOUSE]   = L'C';
-    m_keybinds[DOUBLE_CLICK] = L'V';
-    m_keybinds[TRIPLE_CLICK] = L'N';
-    m_keybinds[QUAD_CLICK]   = L'M';
+    m_keybinds = {
+        {Event::HIDE,          VK_ESCAPE},
+        {Event::REMOVE,        VK_BACK},
+        {Event::CLEAR,         VK_RETURN},
+        {Event::MOVE,          L'C'},
+        {Event::DOUBLE_CLICK,  L'V'},
+        {Event::TRIPLE_CLICK,  L'N'},
+        {Event::QUAD_CLICK,    L'M'}
+    };
 
-    m_hotkeys[ACTIVATE] = HotkeyManager::register_hotkey(
+    m_hotkeys[Event::ACTIVATE] = HotkeyManager::register_hotkey(
         m_hwnd, MOD_CONTROL, VK_OEM_PERIOD
     );
 }
@@ -66,7 +69,6 @@ int Overlay::run()
     MSG msg;
     while (::GetMessageW(&msg, m_hwnd, 0, 0))
     {
-        std::cout << "GOT MSG\n";
         ::TranslateMessage(&msg);
         ::DispatchMessageW(&msg);
     }
@@ -76,11 +78,11 @@ int Overlay::run()
 
 void Overlay::shutdown()
 {
-    HotkeyManager::unregister_hotkey(m_hwnd, m_hotkeys[ACTIVATE]);
+    HotkeyManager::unregister_hotkey(m_hwnd, m_hotkeys[Event::ACTIVATE]);
     ::PostQuitMessage(0);
 }
 
-void Overlay::activate(bool on)
+void Overlay::toggle(bool on)
 {
     static int keyboard_id;
     static int mouse_id;
@@ -192,7 +194,7 @@ bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
     KBDLLHOOKSTRUCT* keydata = (KBDLLHOOKSTRUCT*)l_param;
     WPARAM key = keydata->vkCode;
     LPARAM press_type = w_param;
-    
+
 #ifdef OVERLAY_DEBUG
     std::cout << "VK pressed:  " << key << "\n";
     std::cout << "-> VK char:  " << (char)key << "\n";
@@ -215,18 +217,18 @@ bool CALLBACK Overlay::keyboard_hook_listener(WPARAM w_param, LPARAM l_param)
     auto& kb = m_keybinds;
 
     // Special keys
-    if (key == kb[Action::HIDE])
+    if (key == kb[Event::HIDE])
     {
-        activate(false);
+        toggle(false);
         return true;
     }
-    else if (key == kb[Action::REMOVE_INPUT])
+    else if (key == kb[Event::REMOVE])
     {
         undo_input();
         repaint();
         return true;        
     }
-    else if (key == kb[Action::CLEAR_INPUTS])
+    else if (key == kb[Event::CLEAR])
     {
         clear_input();
         repaint();
@@ -249,7 +251,7 @@ bool CALLBACK Overlay::mouse_hook_listener(WPARAM w_param, LPARAM l_param)
 {
     if (w_param == WM_LBUTTONDOWN || w_param == WM_RBUTTONDOWN)
     {
-        activate(false);
+        toggle(false);
     }
 
     return false;
@@ -275,10 +277,10 @@ int Overlay::enter_input(wchar_t c)
 
         clear_input();
 
-        if (c == m_keybinds[Action::MOVE_MOUSE])   return INT32_MAX;
-        if (c == m_keybinds[Action::DOUBLE_CLICK]) return 2;
-        if (c == m_keybinds[Action::TRIPLE_CLICK]) return 3;
-        if (c == m_keybinds[Action::QUAD_CLICK])   return 4;
+        if (c == m_keybinds[Event::MOVE])   return INT32_MAX;
+        if (c == m_keybinds[Event::DOUBLE_CLICK]) return 2;
+        if (c == m_keybinds[Event::TRIPLE_CLICK]) return 3;
+        if (c == m_keybinds[Event::QUAD_CLICK])   return 4;
         return 1;
     }
 
@@ -359,13 +361,12 @@ LRESULT Overlay::handle_message(UINT msg, WPARAM w_param, LPARAM l_param)
 {
     switch (msg) {
     case WM_HOTKEY:
-        std::cout << "GOT HOTKEY MSG\n";
-        if (w_param == m_hotkeys[ACTIVATE])
+        if (w_param == m_hotkeys[Event::ACTIVATE])
         {
             // Prevent control from getting stuck. For whatever reason
             // right mod keys won't release. Make dynamic later.
-            HLInput::release_key(VK_LCONTROL);
-            activate(!::IsWindowVisible(m_hwnd));
+            HLInput::set_key(VK_LCONTROL, false);
+            toggle(!::IsWindowVisible(m_hwnd));
         }
         return 0;
 
@@ -507,15 +508,17 @@ void Overlay::process_key(WPARAM key, LPARAM details)
     {
 
         HLInput::move_cursor(m_click_pos.x, m_click_pos.y);
-        activate(false);
+        toggle(false);
         return;
     }
 
     if (result > 0)
     {
-        HLInput::click_async(result, m_click_pos.x, m_click_pos.y, HLInput::is_key_down(VK_SHIFT));
-        activate(false);
+        HLInput::click_async(result, m_click_pos.x, m_click_pos.y, HLInput::keydown(VK_SHIFT));
+        toggle(false);
         return;
     }
 
 }
+
+} // namespace overlay

@@ -1,15 +1,24 @@
-- GENERAL:
-- Fix hotkey stuff
+- IDEAS:
+- something better than locking the § key
+- System tray icon
+
+- FIX:
+- Can't click while § key is down
+- Hotkey keys not releasing
 
 - COREAPP:
 - GUI
+- move toolstruct
 
-- TOOLS:
+- OVERLAY:
 - Use VK instead of wchars 
-- Adjustable alpha for text (after everything else)
+- Adjustable alpha for text
 - Overlay uses GetKeyboardState instead of the ll hook state
-- Let hotkey mod keys pass the hook (MAYBE?)
-- Make holding input key hold click and arrows move cursor
+- Make holding input key hold click and arrows move the cursor
+
+- SMOOTH NAVIGATE:
+- Alt drag type of thing
 
 - LINKS:
 - https://www.toptal.com/developers/keycode
+- https://infinite-scroll.com/options.html

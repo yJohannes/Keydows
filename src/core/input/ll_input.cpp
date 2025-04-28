@@ -5,24 +5,21 @@ bool LLInput::keys[256] = {false};
 HHOOK LLInput::m_keyboard_hook = nullptr;
 HHOOK LLInput::m_mouse_hook = nullptr;
 
-std::unordered_map<int, LLInput::Listener> LLInput::m_keyboard_listeners;
-std::unordered_map<int, LLInput::Listener> LLInput::m_mouse_listeners;
+std::unordered_map<ListenerKey, Listener> LLInput::m_registered_listeners;
 
 int LLInput::register_listener(int hook_type, Listener listener)
 {
-    auto* map = get_hook_listener_map(hook_type);
     int id = 0;
-
-    for (const auto& kv : *map)
+    for (auto& [key, _] : m_registered_listeners)
     {
-        if (kv.first == id)
+        if (key.id == id)
             id++;
         else
             break;
     }
 
+    m_registered_listeners[{hook_type, id}] = listener;
     attach_hook(hook_type);
-    (*map)[id] = listener;
 #ifdef HOOK_DEBUG
     std::cout << "Registered listener with ID " << id << "\n";
 #endif
@@ -31,8 +28,9 @@ int LLInput::register_listener(int hook_type, Listener listener)
 
 void LLInput::unregister_listener(int hook_type, int id)
 {
-    auto* map = get_hook_listener_map(hook_type);
-    map->erase(id);
+    auto* map = &m_registered_listeners;
+    map->erase({hook_type, id});
+
 #ifdef HOOK_DEBUG
     std::cout << "Unregistered listener\n";
 #endif
@@ -103,7 +101,6 @@ void LLInput::detach_hooks()
 
 LRESULT CALLBACK LLInput::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_param)
 {
-    std::cout << "Reached LLInput keyboard proc!\n";
     if (n_code < 0)
     {
         return CallNextHookEx(m_keyboard_hook, n_code, w_param, l_param);
@@ -123,12 +120,14 @@ LRESULT CALLBACK LLInput::keyboard_proc(int n_code, WPARAM w_param, LPARAM l_par
         break;
     }
 
-    std::cout << "Relaying to listeners!\n";
-    for (auto& listener : m_keyboard_listeners)
+    for (auto& [key, listener] : m_registered_listeners)
     {
-        if (listener.second(w_param, l_param))
+        if (key.hook_type == WH_KEYBOARD_LL)
         {
-            return 1;
+            if (listener(w_param, l_param))
+            {
+                return 1; // Block input from propagating to further receivers
+            }
         }
     }
     // Pass the input to further receivers
@@ -140,26 +139,17 @@ LRESULT CALLBACK LLInput::mouse_proc(int n_code, WPARAM w_param, LPARAM l_param)
     if (n_code < 0)
         return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
 
-    for (auto& listener : m_mouse_listeners)
+    for (auto& [key, listener] : m_registered_listeners)
     {
-        if (listener.second(w_param, l_param))
+        if (key.hook_type == WH_MOUSE_LL)
         {
-            return 1;
+            if (listener(w_param, l_param))
+            {
+                return 1;
+            }
         }
     }
 
     // Pass the input to further receivers
     return CallNextHookEx(m_mouse_hook, n_code, w_param, l_param);
-}
-
-std::unordered_map<int, LLInput::Listener>* LLInput::get_hook_listener_map(int hook_type)
-{
-    switch (hook_type) {
-    case WH_KEYBOARD_LL:
-        return &m_keyboard_listeners;
-    case WH_MOUSE_LL:
-        return &m_mouse_listeners;
-    default:
-        return nullptr;
-    }
 }

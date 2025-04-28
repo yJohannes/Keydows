@@ -2,22 +2,28 @@
 #define OVERLAY_H
 
 #include <windows.h>
-#undef DOUBLE_CLICK
-
-#include <unordered_map>
-#include <string>
 #include <iostream>
+#include <string>
+#include <unordered_map>
+
+#include "core/event_types.h"
 #include "core/tool_interface.h"
 #include "core/hotkeys/hotkey_manager.h"
 #include "core/input/hl_input.h"
 #include "core/input/ll_input.h"
-#define OVERLAY_DEBUG
+
+// #define OVERLAY_DEBUG
+
+namespace overlay
+{
 
 class Overlay : public ITool
 {
 private:
     WNDCLASSEX m_wcex;
     HWND m_hwnd;
+    HDC m_default_mem_dc;
+    HBITMAP m_default_mem_bitmap;
 
     POINT m_click_pos;
     SIZE m_size;
@@ -25,39 +31,22 @@ private:
 
     int m_block_width;
     int m_block_height;
-    
+
     wchar_t m_input_char_1;
     wchar_t m_input_char_2;
+
     std::wstring m_charset = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
     std::wstring m_click_direction_charset = L"WSADQEOP"; // U, D, L, R, TL, TR, BL, BR
 
-    HDC m_default_mem_dc;
-    HBITMAP m_default_mem_bitmap;
-
-    enum Action
-    {
-        // Keybinds
-        HIDE,
-        REMOVE_INPUT,
-        CLEAR_INPUTS,
-        MOVE_MOUSE,
-        DOUBLE_CLICK,
-        TRIPLE_CLICK,
-        QUAD_CLICK,
-
-        // Hotkeys
-        ACTIVATE
-    };
-
-    std::unordered_map<Action, int> m_keybinds;
-    std::unordered_map<Action, int> m_hotkeys;
+    std::unordered_map<Event, int> m_keybinds;
+    std::unordered_map<Event, int> m_hotkeys;
 
 public:
     Overlay();
     ~Overlay();
     int run();
     void shutdown();
-    void activate(bool on);
+    void toggle(bool on);
     void render(HWND h_wnd);
     void repaint();
     void show_overlay(bool show);
@@ -69,7 +58,6 @@ public:
     void undo_input();
     void clear_input();
 
-    // Setters & Getters
     void set_size(int x, int y);
     void set_resolution(int x, int y);
     void set_charset(const wchar_t* charset);
@@ -91,16 +79,14 @@ private:
     void render_overlay_bitmap(HDC h_dc);
     void delete_cached_default_overlay();
 
-    // Key Events
     void process_key(WPARAM key, LPARAM details);
-    // void process_hotkey(HotkeyID id);
 };
 
 // Expose functions for the DLL
 extern "C" EXPORT_API
 ITool* create_tool()
 {
-    return new Overlay();
+    return new overlay::Overlay();
 }
 
 extern "C" EXPORT_API
@@ -108,5 +94,7 @@ void destroy_tool(ITool* tool)
 {
     delete tool;
 }
+
+} // namespace overlay
 
 #endif // OVERLAY_H

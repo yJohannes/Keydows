@@ -14,7 +14,7 @@ class EXPORT_API ITool
 public:
     virtual ~ITool() = default;
     virtual int run() = 0;
-    virtual void activate(bool b) = 0;
+    virtual void toggle(bool on) = 0;
 
     // virtual void load_data(nlohmann::json& data);
 };
