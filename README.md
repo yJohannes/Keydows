@@ -70,6 +70,11 @@ QUAD_CLICK,    M
 - Windows
 - CMake
 
+In the build folder
+- libstdc++-6.dll
+- libgcc_s_seh-1.dll
+- libwinpthread-1.dll
+
 ## Building
 Run CMake Build on a Windows computer in the project root.
 
