@@ -11,8 +11,8 @@
 #include <unordered_map>
 
 #include "defines.h"
-#include "core/event_types.h"
-#include "core/tool_interface.h"
+#include "core/events/event_types.h"
+#include "core/app/tool_interface.h"
 #include "core/input/ll_input.h"
 #include "core/input/hl_input.h"
 #include "utils/easing_functions.h"

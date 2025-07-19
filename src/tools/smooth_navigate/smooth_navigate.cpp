@@ -248,7 +248,7 @@ void SmoothNavigate::scroll_thread()
 
         while (
             (m_scroll.moving() && m_toggled_active) ||                  // Moving
-            (!m_scroll.moving() && !m_scroll.state.progress.is_zero())  // Stopped moving
+            (!m_scroll.moving() && !m_scroll.state.progress.is_zero())  // Truly stopped moving
         )
         {
             m_scroll.update();

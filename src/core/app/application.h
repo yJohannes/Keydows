@@ -15,11 +15,11 @@
 #include <unordered_map>
 #include <cwchar>
 
-#include "event_types.h"
+#include "core/events/event_types.h"
+#include "core/hotkeys/hotkey_manager.h"
+#include "core/input/ll_input.h"
+#include "core/input/hl_input.h"
 #include "tool_interface.h"
-#include "hotkeys/hotkey_manager.h"
-#include "input/ll_input.h"
-#include "input/hl_input.h"
 
 #include "json.hpp"
 

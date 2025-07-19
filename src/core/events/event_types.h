@@ -11,6 +11,7 @@
 enum class Event
 {
     QUIT,
+    CLOSE,
     HIDE,
     REMOVE,
     CLEAR,

@@ -411,14 +411,15 @@ void Overlay::chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_ou
     char_ids_to_coordinates(id1, id2, x_out, y_out);
 }
 
+
 void Overlay::apply_direction(wchar_t c, int *x, int *y) const
 {
     auto& d = m_click_direction_charset;
-    x -= m_block_width / 2 * (c == d[2] || c == d[4] || c == d[6]);
-    x += m_block_width / 2 * (c == d[3] || c == d[5] || c == d[7]);
+    *x -= m_block_width / 2 * (c == d[2] || c == d[4] || c == d[6]);
+    *x += m_block_width / 2 * (c == d[3] || c == d[5] || c == d[7]);
 
-    y -= m_block_height / 2 * (c == d[0] || c == d[4] || c == d[5]);
-    y += m_block_height / 2 * (c == d[1] || c == d[6] || c == d[7]);
+    *y -= m_block_height / 2 * (c == d[0] || c == d[4] || c == d[5]);
+    *y += m_block_height / 2 * (c == d[1] || c == d[6] || c == d[7]);
 }
 
 void Overlay::render_overlay_bitmap(HDC h_dc)
@@ -499,7 +500,6 @@ void Overlay::process_key(WPARAM key, LPARAM details)
     int result = enter_input(uni_key);
     if (result == -1 || result == -2)
     {
-
         repaint();  // Force repaint to update highlights
         return;
     }
