@@ -6,8 +6,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "core/event_types.h"
-#include "core/tool_interface.h"
+#include "core/events/event_types.h"
+#include "core/app/tool_interface.h"
 #include "core/hotkeys/hotkey_manager.h"
 #include "core/input/hl_input.h"
 #include "core/input/ll_input.h"
@@ -38,6 +38,18 @@ private:
     std::wstring m_charset = L"ABCDEFGHIJKLMNOPQRTSUVWXYZ1234567890,.-";
     std::wstring m_click_direction_charset = L"WSADQEOP"; // U, D, L, R, TL, TR, BL, BR
 
+
+    /* 
+        m_keybinds = {
+        {Event::HIDE,          VK_ESCAPE},
+        {Event::REMOVE,        VK_BACK},
+        {Event::CLEAR,         VK_RETURN},
+        {Event::MOVE,          L'C'},
+        {Event::DOUBLE_CLICK,  L'V'},
+        {Event::TRIPLE_CLICK,  L'N'},
+        {Event::QUAD_CLICK,    L'M'}
+    };
+    */
     std::unordered_map<Event, int> m_keybinds;
     std::unordered_map<Event, int> m_hotkeys;
 

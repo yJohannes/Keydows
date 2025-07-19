@@ -1,7 +1,7 @@
 #include "defines.h"
 #include <windows.h>
 
-#include "core/application.h"
+#include "core/app/application.h"
 
 int APIENTRY WinMain(
     HINSTANCE h_instance,

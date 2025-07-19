@@ -11,7 +11,7 @@ include_directories(
 
 set(CORE_SRC
     src/main.cpp
-    src/core/application.cpp
+    src/core/app/application.cpp
     src/core/input/hl_input.cpp
     src/core/input/ll_input.cpp
     src/core/hotkeys/hotkey_manager.cpp

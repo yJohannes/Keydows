@@ -411,6 +411,7 @@ void Overlay::chars_to_coordinates(wchar_t c1, wchar_t c2, int* x_out, int* y_ou
     char_ids_to_coordinates(id1, id2, x_out, y_out);
 }
 
+
 void Overlay::apply_direction(wchar_t c, int *x, int *y) const
 {
     auto& d = m_click_direction_charset;
@@ -499,7 +500,6 @@ void Overlay::process_key(WPARAM key, LPARAM details)
     int result = enter_input(uni_key);
     if (result == -1 || result == -2)
     {
-
         repaint();  // Force repaint to update highlights
         return;
     }
