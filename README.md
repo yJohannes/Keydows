@@ -8,6 +8,13 @@ The program is and will be a WIP for a long time unless I finish it. Hence anyon
 - To learn more about C/C++.
 - To build a tool that could save me having to reach for my mouse.
 
+## Implementation
+One main app that has hooks for listening to events.
+Tools are compiled to dlls and use an interface to interact with the main app.
+
+#### Main app keybinds
+`Ctrl + Alt + Q` - closes the app.
+
 ## Tools
 At the moment there are two tools.
 1. Smooth Navigate
