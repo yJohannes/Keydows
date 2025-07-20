@@ -10,6 +10,8 @@ std::unordered_map<Event, int> CoreApplication::m_hotkey_ids;
 CoreApplication::CoreApplication(HINSTANCE h_instance)
 {
     const wchar_t class_name[] = L"Keydows";
+    const wchar_t window_name[] = L"Keydows";
+
     WNDCLASSEXW m_wcex = {0};
     m_wcex.cbSize         = sizeof(m_wcex);
     m_wcex.style          = CS_HREDRAW | CS_VREDRAW;
@@ -25,9 +27,9 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
     EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 
     h_wnd = ::CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
+        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
         class_name,
-        L"Keydows",
+        window_name,
         WS_POPUP | WS_VISIBLE,
         0, 0,
         dm.dmPelsWidth, dm.dmPelsHeight,
