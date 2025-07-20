@@ -3,6 +3,8 @@
 
 WNDCLASSEXW CoreApplication::m_wcex;
 HWND CoreApplication::h_wnd = nullptr;
+NOTIFYICONDATA CoreApplication::m_nid;
+
 
 std::vector<CoreApplication::ToolStruct> CoreApplication::m_loaded_tools;
 std::unordered_map<Event, int> CoreApplication::m_hotkey_ids;
@@ -10,6 +12,8 @@ std::unordered_map<Event, int> CoreApplication::m_hotkey_ids;
 CoreApplication::CoreApplication(HINSTANCE h_instance)
 {
     const wchar_t class_name[] = L"Keydows";
+    const wchar_t window_name[] = L"Keydows";
+
     WNDCLASSEXW m_wcex = {0};
     m_wcex.cbSize         = sizeof(m_wcex);
     m_wcex.style          = CS_HREDRAW | CS_VREDRAW;
@@ -25,9 +29,9 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
     EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 
     h_wnd = ::CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
+        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT, // Transparent to mouse press
         class_name,
-        L"Keydows",
+        window_name,
         WS_POPUP | WS_VISIBLE,
         0, 0,
         dm.dmPelsWidth, dm.dmPelsHeight,
@@ -36,6 +40,18 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
         this
     );
     ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
+
+
+    m_nid = {};
+    m_nid.cbSize = sizeof(NOTIFYICONDATA);
+    m_nid.hWnd = h_wnd;
+    m_nid.uID = 1;
+    m_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    m_nid.uCallbackMessage = WM_TRAYICON;
+    m_nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);  // Use your own icon here
+    wcscpy_s(m_nid.szTip, window_name);
+
+    Shell_NotifyIcon(NIM_ADD, &m_nid);
 
     m_hotkey_ids[Event::QUIT] = HotkeyManager::register_hotkey(h_wnd, MOD_CONTROL | MOD_ALT, L'Q');
 
@@ -61,6 +77,8 @@ void CoreApplication::shutdown()
     HotkeyManager::unregister_all_hotkeys();
 
     unload_tools();
+
+    Shell_NotifyIcon(NIM_DELETE, &m_nid);
 
     ::PostQuitMessage(0);
     ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);

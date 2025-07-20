@@ -6,6 +6,7 @@
 #include <SDKDDKVer.h>
 #include <windows.h>
 #include <shellscalingapi.h>
+#include <shellapi.h>
 
 #include <iostream>
 #include <filesystem>
@@ -31,6 +32,7 @@ class CoreApplication
 private:
     static HWND h_wnd;
     static WNDCLASSEXW m_wcex;
+    static NOTIFYICONDATA m_nid;
 
     struct ToolStruct
     {

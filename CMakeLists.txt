@@ -18,7 +18,7 @@ set(CORE_SRC
 )
 
 add_executable(keydows ${CORE_SRC})
-target_link_libraries(keydows user32 gdi32 shcore gdiplus)
+target_link_libraries(keydows user32 gdi32 shcore gdiplus shell32)
 
 # CONFIGURE_DEPENDS runs configuration if new tools are added 
 file(GLOB TOOL_DIRS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/tools/*)
