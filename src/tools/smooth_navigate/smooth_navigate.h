@@ -83,12 +83,6 @@ struct SmoothInput
         state.pressed.y = LLInput::keydown(keys.up) || LLInput::keydown(keys.down);
 
         state.dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - state.last_tick).count();
-        double dp = state.dt / config.ease_in;
-
-        state.mod = std::pow(
-            config.mod_factor,
-            LLInput::keydown(keys.fast) - LLInput::keydown(keys.slow)
-        );
 
         Vec2<int> dirs = {
             LLInput::keydown(keys.right) - LLInput::keydown(keys.left),
@@ -98,11 +92,28 @@ struct SmoothInput
         state.dir.x = dirs.x;
         state.dir.y = dirs.y;
 
+        double increase = state.dt / config.ease_in;
+        double decrease = state.dt / config.ease_out;
+
+        // Calculate delta progress for both axis
+        Vec2<double> dp = 0.0;
+        dp.x = state.pressed.x ? increase : decrease;
+        dp.y = state.pressed.y ? increase : decrease;
+        
+        dp.x *= (dirs.x != 0 ? 1 : -1);
+        dp.y *= (dirs.y != 0 ? 1 : -1);
+        
         state.progress = {
-            std::clamp(state.progress.x + dp * (dirs.x != 0 ? 1 : -1), 0.0, 1.0),
-            std::clamp(state.progress.y + dp * (dirs.y != 0 ? 1 : -1), 0.0, 1.0)
+            std::clamp(state.progress.x + dp.x, 0.0, 1.0),
+            std::clamp(state.progress.y + dp.y, 0.0, 1.0)
         };
-        // std::wcout << "Progress: \t" << state.progress.x << "\t" << state.progress.y << "\n";
+        
+        state.mod = std::pow(
+            config.mod_factor,
+            LLInput::keydown(keys.fast) - LLInput::keydown(keys.slow)
+        );
+
+        std::wcout << "Progress: \t" << state.progress.x << "\t" << state.progress.y << "\n";
     }
 
     // Wait until next tick unless notified to check the condition

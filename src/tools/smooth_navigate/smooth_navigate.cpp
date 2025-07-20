@@ -6,17 +6,16 @@ namespace smooth_navigate
 SmoothNavigate::SmoothNavigate()
 {
     m_scroll.config.frequency = 240;
-    m_scroll.config.base_step = 0.05;
+    m_scroll.config.base_step = 0.075;
     m_scroll.config.mod_factor = 2;
-    m_scroll.config.ease_in = 0.25;
-    m_scroll.config.ease_out = 1.00;
-    // m_scroll.config.ease_out = 0.12;
+    m_scroll.config.ease_in = 0.35;
+    m_scroll.config.ease_out = 3.0;
 
     m_move.config.frequency = 240;
-    m_move.config.base_step = 1;     // Pixels
+    m_move.config.base_step = 1.5;     // Pixels
     m_move.config.mod_factor = 2.5;
     m_move.config.ease_in = 0.75;
-    m_move.config.ease_out = 0; // No easing out
+    m_move.config.ease_out = 0.75; // No easing out
 
     m_scroll.state.progress = 0.0;
     m_scroll.state.step = m_scroll.config.base_step;
@@ -131,11 +130,11 @@ bool CALLBACK SmoothNavigate::keyboard_hook_listener(WPARAM w_param, LPARAM l_pa
             m_toggled_active = !m_toggled_active;
             if (m_toggled_active)
             {
-                ::MessageBeep(MB_ICONASTERISK);   
+                // ::MessageBeep(MB_ICONASTERISK);
             }
             else
             {
-                ::MessageBeep(MB_ICONHAND);
+                // ::MessageBeep(MB_ICONHAND);
             }
             return true;
         }
@@ -247,8 +246,8 @@ void SmoothNavigate::scroll_thread()
         m_scroll.reset_time();
 
         while (
-            (m_scroll.moving() && m_toggled_active) ||                  // Moving
-            (!m_scroll.moving() && !m_scroll.state.progress.is_zero())  // Truly stopped moving
+            (m_scroll.moving() && m_toggled_active) ||  // Moving
+            !m_move.state.progress.is_zero()            // Stopped moving
         )
         {
             m_scroll.update();
@@ -267,15 +266,10 @@ void SmoothNavigate::scroll_thread()
 
             HLInput::scroll(delta.x, delta.y);
 
-            // Switch predicate based on whether we're actively moving
-            if (m_scroll.moving() && m_toggled_active)
-            {
-                m_scroll.next_tick([&]() { return !m_scroll.moving(); });
-            }
-            else
-            {
-                m_scroll.next_tick([&]() { return m_scroll.moving(); });
-            }
+            // Wait until progress has fully decayed
+            m_move.next_tick([&]() {
+                return m_move.state.progress.is_zero();
+            });
         }
 
         m_scroll.stop();
@@ -308,27 +302,44 @@ void SmoothNavigate::start_move()
 {
     m_move.reset_time();
 
-    while (m_move.moving() && m_toggled_active)
+    while (
+        (m_move.moving() && m_toggled_active) ||
+        !m_move.state.progress.is_zero()  // Stopped moving
+    )
     {
         m_move.update();
 
         POINT p;
         if (::GetCursorPos(&p))
         {
-            double dirx = m_move.state.dir.x;
-            double diry = m_move.state.dir.y;
-
             auto& pos = m_move.state.position;
 
-            double normalize = std::abs(dirx) && std::abs(diry) ? 1 / 1.41421 : 1;
+            Vec2<double> easing = {
+                easing::ease_in_out_sine(m_move.state.progress.x),
+                easing::ease_in_out_sine(m_move.state.progress.y)
+            };
 
-            pos.x += dirx * m_move.state.step * m_move.state.mod * normalize;
-            pos.y -= diry * m_move.state.step * m_move.state.mod * normalize;
+            Vec2<double> raw_delta = easing * m_move.state.step * m_move.state.mod * m_move.state.dir;
+            Vec2<double> delta = raw_delta;
+
+            // Normalization
+            double len = std::sqrt(raw_delta.x * raw_delta.x + raw_delta.y * raw_delta.y);
+            if (len > 1e-6) {  // avoid division by zero
+                delta = raw_delta * (1.0 / len);  // unit vector
+                delta *= std::max(std::abs(raw_delta.x), std::abs(raw_delta.y));  // scale by dominant axis (preserves scalar)
+            }
+
+            pos.x += delta.x;
+            pos.y -= delta.y;
+
 
             HLInput::move_cursor(pos.x, pos.y);
         }
 
-        m_move.next_tick([&]() { return !m_move.moving(); });
+        // Wait until progress has fully decayed
+        m_move.next_tick([&]() {
+            return m_move.state.progress.is_zero();
+        });
     }
 }
 
