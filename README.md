@@ -54,9 +54,11 @@ SLOW_MODE,     V
 
 
 ### 2. Overlay
-Opens an overlay grid of character coordinates the user can type to perform a click or other actions.
+An overlay grid of character coordinates the user can type to perform a click or other actions.
 
 #### Keybinds
+To open the overlay, `Ctrl + .`.
+
 While the overlay is open the user may
 ```cpp
 HIDE,           ESCAPE  // Hide the overlay
