@@ -3,6 +3,8 @@
 
 WNDCLASSEXW CoreApplication::m_wcex;
 HWND CoreApplication::h_wnd = nullptr;
+NOTIFYICONDATA CoreApplication::m_nid;
+
 
 std::vector<CoreApplication::ToolStruct> CoreApplication::m_loaded_tools;
 std::unordered_map<Event, int> CoreApplication::m_hotkey_ids;
@@ -39,6 +41,18 @@ CoreApplication::CoreApplication(HINSTANCE h_instance)
     );
     ::SetLayeredWindowAttributes(h_wnd, RGB(0, 0, 0), 200, LWA_ALPHA | LWA_COLORKEY);
 
+
+    m_nid = {};
+    m_nid.cbSize = sizeof(NOTIFYICONDATA);
+    m_nid.hWnd = h_wnd;
+    m_nid.uID = 1;
+    m_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    m_nid.uCallbackMessage = WM_TRAYICON;
+    m_nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);  // Use your own icon here
+    wcscpy_s(m_nid.szTip, window_name);
+
+    Shell_NotifyIcon(NIM_ADD, &m_nid);
+
     m_hotkey_ids[Event::QUIT] = HotkeyManager::register_hotkey(h_wnd, MOD_CONTROL | MOD_ALT, L'Q');
 
     load_config();
@@ -63,6 +77,8 @@ void CoreApplication::shutdown()
     HotkeyManager::unregister_all_hotkeys();
 
     unload_tools();
+
+    Shell_NotifyIcon(NIM_DELETE, &m_nid);
 
     ::PostQuitMessage(0);
     ::UnregisterClassW(m_wcex.lpszClassName, m_wcex.hInstance);
